@@ -16,6 +16,9 @@ const config: CapacitorConfig = {
   appName: 'Uzaktan Şantiye',
   // Remote-URL modunda kullanılmaz ama Capacitor CLI tarafından zorunlu tutulur.
   webDir: 'public',
+  // Native WebView zemini: yavaş ağda splash sonrası BEYAZ ekran yerine
+  // marka lacivertini göster (iOS'ta ayarlanmazsa systemBackground=beyaz).
+  backgroundColor: '#1a1a2e',
   server: {
     url: 'https://uzaktansantiye.com',
     hostname: 'uzaktansantiye.com',
@@ -24,8 +27,12 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   ios: {
-    // İçerik üst/alt güvenli alanlara (notch/home indicator) saygı göstersin.
-    contentInset: 'always',
+    // 'never': safe-area'yı (notch/home indicator) WEB tarafı CSS ile çözer
+    // (env(safe-area-inset-*) + viewport-fit=cover — Android'le AYNI kanıtlanmış yol).
+    // 'always' idi → WKWebView içeriği bir de NATIVE kaydırıyordu: çift ofset,
+    // fixed overlay'ler (sohbet/tablo önizleme) yanlış konum, sayfa görünür
+    // alandan uzun kalıp rubber-band bounce. (iOS Faz 0 testi bulgusu.)
+    contentInset: 'never',
     // iOS 14+ App-Bound Domains: cookie/localStorage/WebRTC kısıtlanmasın.
     // (Info.plist'e WKAppBoundDomains anahtarı da eklenecek.)
     limitsNavigationsToAppBoundDomains: true,
@@ -43,6 +50,13 @@ const config: CapacitorConfig = {
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
+    },
+    // iOS'ta klavye açılınca WKWebView çerçevesini KÜÇÜLT (Android adjustResize
+    // eşleniği) → 100dvh/env() yeniden hesaplanır, sohbet input'u klavyenin
+    // üstünde kalır. Eklenti yoksa iOS klavyede viewport küçülmez ve WKWebView
+    // tüm uygulamayı yukarı iterek başlığı ekran dışına kaydırır.
+    Keyboard: {
+      resize: 'native',
     },
   },
 };
