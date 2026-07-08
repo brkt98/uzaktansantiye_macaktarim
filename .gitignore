@@ -1,0 +1,81 @@
+# === Bağımlılıklar ===
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# === Next.js build çıktıları ===
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# === Üretim ===
+/dist
+
+# === Ortam değişkenleri (SIR: repoya girmemeli) ===
+.env
+.env*.local
+.env.production
+
+# === Sırlar / şifreli anahtarlar / sertifikalar (repoya ASLA girmemeli) ===
+# Özel anahtarlar & sertifikalar
+*.pem
+*.key
+*.p8            # Apple APNs auth key
+*.p12           # Apple sertifika / dağıtım
+*.pfx
+*.cer
+*.crt
+*.der
+*.mobileprovision
+*.provisionprofile
+# Android imzalama
+*.keystore
+*.jks
+keystore.properties
+# Firebase / Google servis hesapları
+# NOT: android/app/google-services.json şimdilik BİLEREK paylaşımlı (takipli)
+# tutuluyor — build kolaylığı için. Gerçek sır olmadığından (client config) sakınca yok.
+GoogleService-Info.plist
+*serviceAccount*.json
+*service-account*.json
+firebase-adminsdk*.json
+# Genel sır kalıpları
+*secret*.json
+*credentials*.json
+secrets.*
+
+# === Prisma (üretilen client) ===
+/node_modules/.prisma
+
+# === Test / coverage ===
+/coverage
+
+# === Log & debug ===
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# === TypeScript ===
+*.tsbuildinfo
+
+# === İşletim sistemi / editör ===
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# === Capacitor / native build çıktıları ===
+# (ios/ ve android/ kaynakları repoda kalır; sadece build ürünleri hariç)
+/ios/App/App/public
+/ios/App/Pods
+/ios/DerivedData
+/android/app/build
+/android/build
+/android/.gradle
+
+# === Yükleme / geçici dosyalar ===
+/public/uploads
+/tmp

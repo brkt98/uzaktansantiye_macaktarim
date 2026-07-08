@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 const SLIDES = [1, 2, 3, 4, 5];
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,7 +29,12 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
+      // Native WKWebView (iOS Capacitor) cookie yazma yarışını önlemek için
+      // yumuşak router.push yerine tam sayfa yönlendirme yap: WebView taze
+      // auth-token cookie'sini deposuna yazana kadar bekler ve /dashboard
+      // isteğine cookie'yi ekler. Aksi halde middleware token'ı bulamayıp
+      // login'e geri atıyor ("doğru şifre ama giriş yapmıyor").
+      window.location.assign("/dashboard");
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
