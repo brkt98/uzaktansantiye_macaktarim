@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "83649359335",
+    "project_id": "uzaktan-santiye",
+    "storage_bucket": "uzaktan-santiye.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:83649359335:android:c74aab57f018bb8d632142",
+        "android_client_info": {
+          "package_name": "com.mesalegrup.uzaktansantiye"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7x9eNKh53GRlkxaAUSGoMvrJqwB7AAzE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,1657 @@
+@import "tailwindcss";
+
+:root {
+  --mesale-red: #c0392b;
+  --mesale-red-dark: #922b21;
+  --mesale-green: #27ae60;
+  --mesale-green-dark: #1e8449;
+  --mesale-dark: #1a1a2e;
+  --mesale-navy: #16213e;
+  --mesale-blue: #0f3460;
+  --mesale-accent: #e94560;
+}
+
+@theme inline {
+  --color-mesale-red: var(--mesale-red);
+  --color-mesale-red-dark: var(--mesale-red-dark);
+  --color-mesale-green: var(--mesale-green);
+  --color-mesale-green-dark: var(--mesale-green-dark);
+  --color-mesale-dark: var(--mesale-dark);
+  --color-mesale-navy: var(--mesale-navy);
+  --color-mesale-blue: var(--mesale-blue);
+  --color-mesale-accent: var(--mesale-accent);
+}
+
+html {
+  background-color: #1a1a2e;
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  background-color: #1a1a2e;
+  overscroll-behavior-y: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Card hover efekti */
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Progress bar animasyonu */
+.progress-bar {
+  transition: width 0.6s ease;
+}
+
+/* Breadcrumb */
+.breadcrumb-item::after {
+  content: "→";
+  margin: 0 8px;
+  color: #666;
+}
+
+.breadcrumb-item:last-child::after {
+  content: "";
+}
+
+/* Status renkleri */
+.status-completed {
+  background-color: var(--mesale-green);
+  color: white;
+}
+
+.status-in-progress {
+  background-color: #f39c12;
+  color: white;
+}
+
+.status-not-started {
+  background-color: var(--mesale-red);
+  color: white;
+}
+
+.status-on-hold {
+  background-color: #95a5a6;
+  color: white;
+}
+
+/* ===== TABLET (iPad Mini 6) OVERRIDES ===== */
+/* iPad Mini 6: 2266x1488 physical, 744x1133 CSS viewport (2x DPR) */
+
+[data-device="tablet"] {
+  /* Base font size boost */
+  font-size: 17px;
+  /* Prevent horizontal scroll */
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Navbar compact on tablet */
+[data-device="tablet"] header nav {
+  gap: 4px !important;
+}
+
+[data-device="tablet"] header nav a,
+[data-device="tablet"] header nav button {
+  padding: 10px 12px !important;
+  font-size: 15px !important;
+  min-height: 44px !important;
+}
+
+/* Admin dropdown menu items: bigger on tablet */
+[data-device="tablet"] header nav .absolute a {
+  padding: 12px 16px !important;
+  font-size: 15px !important;
+  min-height: 44px !important;
+}
+[data-device="tablet"] header nav .absolute a svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Site page navigation buttons (Anasayfa, Geri, Şantiyeler, Personel Raporu) */
+[data-device="tablet"] main a[class*="rounded-lg"][class*="text-sm"][class*="font-medium"],
+[data-device="tablet"] main > div > div > div > a[class*="rounded-lg"][class*="text-sm"],
+[data-device="tablet"] main button[class*="rounded-lg"][class*="text-sm"][class*="font-medium"][class*="bg-"] {
+  padding: 12px 20px !important;
+  font-size: 16px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] main a[class*="rounded-lg"][class*="text-sm"][class*="font-medium"] svg,
+[data-device="tablet"] main > div > div > div > a[class*="rounded-lg"][class*="text-sm"] svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Global text size bumps for tiny text */
+[data-device="tablet"] [class*="text-\[9px\]"],
+[data-device="tablet"] [class*="text-\[10px\]"] {
+  font-size: 13px !important;
+}
+
+[data-device="tablet"] [class*="text-\[11px\]"] {
+  font-size: 14px !important;
+}
+
+/* Ensure minimum touch targets (44px Apple HIG) */
+[data-device="tablet"] button,
+[data-device="tablet"] select,
+[data-device="tablet"] [role="button"] {
+  min-height: 40px;
+}
+
+/* Small inline icon buttons excluded from min-height */
+[data-device="tablet"] button.tablet-compact,
+[data-device="tablet"] [class~="p-0.5"] button,
+[data-device="tablet"] [class~="p-1"] button {
+  min-height: unset;
+}
+
+/* Form inputs - bigger on tablet */
+[data-device="tablet"] input[type="text"],
+[data-device="tablet"] input[type="number"],
+[data-device="tablet"] input[type="password"],
+[data-device="tablet"] input[type="email"],
+[data-device="tablet"] input[type="search"],
+[data-device="tablet"] input[type="date"],
+[data-device="tablet"] textarea,
+[data-device="tablet"] select {
+  font-size: 16px !important;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Popup/Modal overlays - better sizing on tablet */
+[data-device="tablet"] .fixed.inset-0 > div {
+  max-height: 90vh;
+}
+
+/* Hide scrollbar on tablet for cleaner look */
+[data-device="tablet"] ::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* Disable hover effects on touch (they stick) */
+[data-device="tablet"] .card-hover:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+[data-device="tablet"] .card-hover:active {
+  transform: scale(0.98);
+}
+
+/* Tablet portrait: force 2 columns for card grids that use md: or sm: breakpoints */
+/* iPad Mini 6 portrait = 744px < md(768px), so md: classes don't activate */
+/* But sm:grid-cols-3 activates at 640px, making cards too narrow on 744px */
+@media (max-width: 767px) {
+  [data-device="tablet"] [class*="md:grid-cols-2"],
+  [data-device="tablet"] [class*="md:grid-cols-3"],
+  [data-device="tablet"] [class*="sm:grid-cols-3"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Tablet: ensure flex-col sm:flex-row patterns work (sm:640px < 744px, already fine) */
+
+/* Site cards grid: all cards same size (Peyzaj card matches block cards) */
+[data-device="tablet"] .site-cards-grid > * {
+  min-height: 260px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+[data-device="tablet"] .site-cards-grid > div[class*="flex-col"] {
+  justify-content: stretch !important;
+}
+
+/* Tablet: force better touch target spacing on table action buttons */
+[data-device="tablet"] table button,
+[data-device="tablet"] table [role="button"] {
+  min-height: 36px;
+  min-width: 36px;
+}
+
+/* Tablet: text-xs bump (Tailwind text-xs = 12px → 14px on tablet) */
+[data-device="tablet"] [class*="text-xs"] {
+  font-size: 14px !important;
+}
+
+/* PdfViewer: bump super-tiny pin text (6-8px → 11px) */
+[data-device="tablet"] [class*="text-\[6px\]"],
+[data-device="tablet"] [class*="text-\[7px\]"],
+[data-device="tablet"] [class*="text-\[8px\]"] {
+  font-size: 11px !important;
+}
+
+/* Tablet: make hover-revealed controls visible (essential for touch) */
+[data-device="tablet"] [class*="group-hover:opacity"] {
+  opacity: 1 !important;
+}
+
+/* Tablet: icon-only buttons with very small padding → ensure touchable */
+[data-device="tablet"] button[class~="p-1.5"],
+[data-device="tablet"] a[class~="p-1.5"] {
+  min-height: 40px;
+  min-width: 40px;
+}
+
+/* Settings: tiny p-0.5 chevron/reorder buttons → ensure touchable */
+[data-device="tablet"] button[class~="p-0.5"] {
+  min-height: 32px;
+  min-width: 32px;
+}
+
+/* PdfViewer: color picker circles → bigger touch targets */
+[data-device="tablet"] [class*="w-5"][class*="h-5"][class*="rounded-full"][role="button"],
+[data-device="tablet"] button[class*="w-5"][class*="h-5"] {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+/* Tablet: pin size selector buttons → minimum touch size */
+[data-device="tablet"] [class*="w-\[26px\]"],
+[data-device="tablet"] [class*="w-\[28px\]"],
+[data-device="tablet"] [class*="w-\[30px\]"],
+[data-device="tablet"] [class*="w-\[32px\]"],
+[data-device="tablet"] [class*="w-\[34px\]"],
+[data-device="tablet"] [class*="w-\[36px\]"] {
+  min-width: 40px !important;
+  min-height: 32px !important;
+}
+
+/* Tablet: media badge minimum size (12×12 → 20×20) */
+[data-device="tablet"] [class*="w-3"][class*="h-3"] {
+  width: 20px !important;
+  height: 20px !important;
+  font-size: 10px !important;
+}
+
+/* Tablet: modals/popups ensure scrollable & padded */
+[data-device="tablet"] .fixed.inset-0 {
+  padding: 16px;
+}
+
+/* ===== RUHSAT-İSKAN: Tablet Optimizations ===== */
+
+/* Table buttons: bigger + uniform height */
+[data-device="tablet"] table td button[class*="w-full"][class*="rounded-lg"] {
+  padding: 14px 10px !important;
+  font-size: 15px !important;
+  min-height: 64px !important;
+}
+
+/* Popup: wider on tablet */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] {
+  max-width: 90vw !important;
+}
+
+/* Popup header buttons (Belge Tara, Dosya Yükle): 2-3x bigger */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] label[class*="text-\[11px\]"],
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] button[class*="text-\[11px\]"] {
+  font-size: 16px !important;
+  padding: 12px 24px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] label[class*="text-\[11px\]"] svg,
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] button[class*="text-\[11px\]"] svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Popup file list items: bigger touch targets */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] [class*="bg-gray-50"][class*="rounded-md"][class*="px-3"] {
+  padding: 14px 16px !important;
+  gap: 12px !important;
+}
+
+/* Popup file action buttons (edit, download, delete): much bigger */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] button[class*="text-\[10px\]"] {
+  padding: 10px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"] button[class*="text-\[10px\]"] svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Delete confirm popup (max-w-sm): wider + bigger buttons on tablet */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] {
+  max-width: 85vw !important;
+  padding: 32px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] h3 {
+  font-size: 22px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] p {
+  font-size: 16px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] button {
+  font-size: 18px !important;
+  padding: 14px 32px !important;
+  min-height: 52px !important;
+  border-radius: 10px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] input[type="text"] {
+  font-size: 18px !important;
+  padding: 14px 16px !important;
+}
+/* Delete icon circle bigger */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] [class*="w-14"][class*="h-14"] {
+  width: 72px !important;
+  height: 72px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"] [class*="w-14"][class*="h-14"] svg {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+/* ===== KABA İNŞAAT: Tablet Optimizations ===== */
+
+/* Peyzaj table: grid layout with 4 columns instead of horizontal scroll */
+[data-device="tablet"] .peyzaj-construction .overflow-x-auto {
+  overflow-x: visible !important;
+}
+[data-device="tablet"] .peyzaj-construction table {
+  display: block !important;
+}
+[data-device="tablet"] .peyzaj-construction tbody {
+  display: block !important;
+}
+[data-device="tablet"] .peyzaj-construction tr {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 6px !important;
+  padding: 8px !important;
+}
+[data-device="tablet"] .peyzaj-construction td.sticky {
+  grid-column: 1 / -1 !important;
+  position: static !important;
+  text-align: center !important;
+  border-radius: 8px !important;
+}
+[data-device="tablet"] .peyzaj-construction td.p-1 {
+  padding: 2px !important;
+}
+
+/* Construction table: uniform button sizes */
+[data-device="tablet"] table td button[class*="rounded-lg"][class*="leading-tight"] {
+  padding: 10px 8px !important;
+  font-size: 14px !important;
+  min-height: 70px !important;
+  min-width: 120px !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+}
+
+/* Construction table button inner text: ensure text fits */
+[data-device="tablet"] table td button[class*="rounded-lg"][class*="leading-tight"] span.block {
+  font-size: 13px !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  line-height: 1.3 !important;
+}
+[data-device="tablet"] table td button[class*="rounded-lg"][class*="leading-tight"] span[class*="text-xs"] {
+  font-size: 11px !important;
+}
+[data-device="tablet"] table td button[class*="rounded-lg"][class*="leading-tight"] span[class*="w-5"][class*="h-5"] {
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  font-size: 11px !important;
+}
+
+/* Construction table: sticky header cell z-index + shadow for visual separation */
+[data-device="tablet"] table td.sticky {
+  box-shadow: 3px 0 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Construction upload popup: wider on tablet */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] {
+  max-width: 92vw !important;
+}
+
+/* İş Bitir / İşi Devam Ettir / Personel buttons: bigger in construction popup header */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] button[class*="gap-1.5"][class*="rounded-lg"][class*="text-sm"] {
+  padding: 12px 18px !important;
+  font-size: 16px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] button[class*="gap-1.5"][class*="rounded-lg"][class*="text-sm"] svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Fotoğraf Çek / Video Çek buttons: much bigger */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] .grid-cols-2 button[class*="rounded-xl"] {
+  padding: 18px 12px !important;
+  font-size: 17px !important;
+  min-height: 60px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] .grid-cols-2 button[class*="rounded-xl"] svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Galeriden Fotoğraf / Video Seç label button: much bigger */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] label[class*="rounded-xl"][class*="cursor-pointer"] {
+  padding: 18px 16px !important;
+  font-size: 17px !important;
+  min-height: 60px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] label[class*="rounded-xl"][class*="cursor-pointer"] svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Construction media thumbnails: edit/delete buttons bigger */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] button[class*="rounded-full"][class*="p-1.5"] {
+  padding: 10px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] button[class*="rounded-full"][class*="p-1.5"] svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Construction media edit popup: shift up 50-60px so keyboard doesn't cover it */
+[data-device="tablet"] .construction-edit-popup {
+  align-items: flex-start !important;
+  padding-top: 60px !important;
+}
+
+/* Construction media delete confirm popup (z-[70]): ensure centered */
+[data-device="tablet"] .fixed.inset-0[class*="z-\[70\]"]:not(.construction-edit-popup) {
+  align-items: center !important;
+  padding-top: 16px !important;
+}
+
+/* Date inputs in construction popup: stack vertically to prevent overlap */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] .grid-cols-2.gap-2.pt-1 {
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] .grid-cols-2.gap-2.pt-1 label {
+  font-size: 14px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-lg"][class*="border-\[5px\]"] .grid-cols-2.gap-2.pt-1 input[type="date"] {
+  padding: 12px !important;
+  font-size: 16px !important;
+}
+
+/* Construction choice popup (max-w-sm with border-[5px]): bigger buttons */
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"][class*="border-\[5px\]"] button[class*="rounded-xl"] {
+  padding: 18px 16px !important;
+  font-size: 17px !important;
+  min-height: 56px !important;
+}
+[data-device="tablet"] .fixed.inset-0 [class*="max-w-sm"][class*="border-\[5px\]"] button[class*="rounded-xl"] svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* ===== ÇÖP KUTUSU: Tablet Optimizations ===== */
+
+/* Hide Pin filter on tablet */
+[data-device="tablet"] .trash-filter-pin {
+  display: none !important;
+}
+
+/* Filter buttons bigger on tablet */
+[data-device="tablet"] .trash-filter-btn {
+  font-size: 14px !important;
+  padding: 8px 14px !important;
+  min-height: 40px !important;
+}
+
+/* Search input bigger on tablet */
+[data-device="tablet"] .trash-filters input[type="text"] {
+  font-size: 17px !important;
+  padding: 10px 12px 10px 36px !important;
+  min-height: 44px !important;
+  max-width: none !important;
+}
+[data-device="tablet"] .trash-filters .max-w-xs {
+  max-width: none !important;
+}
+
+/* Geri Yükle / Kalıcı Sil buttons bigger on tablet */
+[data-device="tablet"] button[title="Geri Yükle"],
+[data-device="tablet"] button[title="Kalıcı Sil"] {
+  font-size: 15px !important;
+  padding: 10px 16px !important;
+  min-height: 44px !important;
+}
+[data-device="tablet"] button[title="Geri Yükle"] svg,
+[data-device="tablet"] button[title="Kalıcı Sil"] svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+/* Always show button text on tablet */
+[data-device="tablet"] button[title="Geri Yükle"] span,
+[data-device="tablet"] button[title="Kalıcı Sil"] span {
+  display: inline !important;
+}
+
+/* Confirm delete popup bigger on tablet */
+[data-device="tablet"] .trash-delete-popup {
+  max-width: 90vw !important;
+  padding: 28px !important;
+}
+[data-device="tablet"] .trash-delete-popup h3 {
+  font-size: 20px !important;
+}
+[data-device="tablet"] .trash-delete-popup p {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+[data-device="tablet"] .trash-delete-popup [class*="w-10"][class*="h-10"] {
+  width: 56px !important;
+  height: 56px !important;
+}
+[data-device="tablet"] .trash-delete-popup [class*="w-10"][class*="h-10"] svg {
+  width: 28px !important;
+  height: 28px !important;
+}
+/* Popup buttons bigger */
+[data-device="tablet"] .trash-delete-popup button {
+  font-size: 17px !important;
+  padding: 14px 24px !important;
+  min-height: 50px !important;
+}
+
+/* ===== KULLANICILAR SAYFASI: Tablet Optimizations ===== */
+
+/* Hide E-posta, Telefon, Durum columns on tablet */
+[data-device="tablet"] .users-col-email,
+[data-device="tablet"] .users-col-phone,
+[data-device="tablet"] .users-col-status {
+  display: none !important;
+}
+
+/* İşlemler action buttons: bigger on tablet */
+[data-device="tablet"] .users-actions {
+  gap: 12px !important;
+}
+[data-device="tablet"] .users-actions button {
+  padding: 12px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .users-actions button svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* ===== PERSONEL POPUP: Tablet Optimizations ===== */
+
+/* Personnel popup: wider */
+[data-device="tablet"] .personnel-popup {
+  max-width: 92vw !important;
+  max-height: 92vh !important;
+}
+
+/* Personnel popup header */
+[data-device="tablet"] .personnel-popup h2 {
+  font-size: 20px !important;
+}
+[data-device="tablet"] .personnel-popup h2 svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Personnel popup subtitle + date */
+[data-device="tablet"] .personnel-popup p[class*="text-sm"],
+[data-device="tablet"] .personnel-popup p[class*="text-xs"] {
+  font-size: 15px !important;
+}
+
+/* Geçmiş button bigger */
+[data-device="tablet"] .personnel-popup button[class*="bg-gray-100"][class*="rounded-lg"] {
+  font-size: 16px !important;
+  padding: 8px 16px !important;
+  min-height: 44px !important;
+}
+[data-device="tablet"] .personnel-popup button[class*="bg-gray-100"][class*="rounded-lg"] svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Close button bigger */
+[data-device="tablet"] .personnel-popup button[class*="hover:bg-gray-100"] > svg[class*="lucide-x"] {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Personnel record rows */
+[data-device="tablet"] .personnel-popup [class*="bg-gray-50"][class*="rounded-lg"] {
+  padding: 14px 16px !important;
+}
+[data-device="tablet"] .personnel-popup [class*="bg-gray-50"][class*="rounded-lg"] span[class*="font-medium"] {
+  font-size: 16px !important;
+}
+[data-device="tablet"] .personnel-popup [class*="bg-gray-50"][class*="rounded-lg"] span[class*="text-sm"] {
+  font-size: 15px !important;
+}
+
+/* Tam Gün / Yarım Gün badges bigger */
+[data-device="tablet"] .personnel-popup span[class*="rounded"][class*="text-xs"][class*="font-medium"] {
+  font-size: 14px !important;
+  padding: 4px 10px !important;
+}
+
+/* Delete button bigger */
+[data-device="tablet"] .personnel-popup button[class*="hover:text-red-600"] {
+  padding: 8px !important;
+}
+[data-device="tablet"] .personnel-popup button[class*="hover:text-red-600"] svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Form labels */
+[data-device="tablet"] .personnel-popup label[class*="text-xs"] {
+  font-size: 14px !important;
+}
+
+/* Form text inputs */
+[data-device="tablet"] .personnel-popup input[type="text"] {
+  font-size: 17px !important;
+  padding: 12px 14px !important;
+  min-height: 48px !important;
+}
+
+/* Duration toggle buttons */
+[data-device="tablet"] .personnel-popup .personnel-duration-toggle button {
+  font-size: 16px !important;
+  padding: 12px 16px !important;
+  min-height: 48px !important;
+  white-space: nowrap !important;
+}
+
+/* Add button (Plus) */
+[data-device="tablet"] .personnel-popup button[class*="bg-\[#c0392b\]"][class*="rounded-lg"] {
+  padding: 12px 16px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .personnel-popup button[class*="bg-\[#c0392b\]"][class*="rounded-lg"] svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Form grid: stack on tablet for better touch targets */
+[data-device="tablet"] .personnel-popup .grid[class*="grid-cols-"] {
+  grid-template-columns: 1fr 1fr auto !important;
+  gap: 10px !important;
+}
+
+/* Suggestion dropdown items bigger */
+[data-device="tablet"] .personnel-popup .absolute[class*="shadow-lg"] button {
+  padding: 12px 14px !important;
+  font-size: 16px !important;
+  min-height: 44px !important;
+}
+
+/* History panel: date input and buttons */
+[data-device="tablet"] .personnel-popup [class*="bg-blue-50"] input[type="date"] {
+  font-size: 16px !important;
+  padding: 8px 12px !important;
+}
+[data-device="tablet"] .personnel-popup [class*="bg-blue-50"] button {
+  min-height: 40px !important;
+  min-width: 40px !important;
+}
+
+/* History record rows */
+[data-device="tablet"] .personnel-popup [class*="bg-blue-50"] [class*="bg-white"][class*="rounded-lg"] {
+  padding: 10px 14px !important;
+  font-size: 15px !important;
+}
+
+/* Empty state text */
+[data-device="tablet"] .personnel-popup p[class*="text-gray-400"][class*="text-center"] {
+  font-size: 16px !important;
+}
+
+/* ===== İNCE İNŞAAT: Tablet Optimizations ===== */
+
+/* Daire Bazında / İş Bazında selection cards: bigger, full width like block cards */
+[data-device="tablet"] .grid-cols-2.max-w-lg {
+  max-width: 100% !important;
+  gap: 16px !important;
+}
+[data-device="tablet"] .grid-cols-2.max-w-lg button[class*="card-hover"] {
+  padding: 28px 20px !important;
+}
+[data-device="tablet"] .grid-cols-2.max-w-lg button[class*="card-hover"] [class*="w-14"][class*="h-14"] {
+  width: 64px !important;
+  height: 64px !important;
+}
+[data-device="tablet"] .grid-cols-2.max-w-lg button[class*="card-hover"] [class*="w-14"][class*="h-14"] svg {
+  width: 32px !important;
+  height: 32px !important;
+}
+[data-device="tablet"] .grid-cols-2.max-w-lg button[class*="card-hover"] p[class*="font-semibold"] {
+  font-size: 18px !important;
+}
+[data-device="tablet"] .grid-cols-2.max-w-lg button[class*="card-hover"] p[class*="text-xs"] {
+  font-size: 14px !important;
+}
+
+/* İnce inşaat grids (daire grid, iş listesi): 3 columns on tablet, bigger buttons */
+[data-device="tablet"] .ince-insaat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  padding: 10px !important;
+}
+
+/* İnce inşaat grid buttons: bigger padding, font, uniform height */
+[data-device="tablet"] .ince-insaat-grid button[class*="rounded-lg"] {
+  padding: 16px 12px !important;
+  min-height: 90px !important;
+}
+[data-device="tablet"] .ince-insaat-grid button[class*="rounded-lg"] span[class*="font-bold"][class*="text-sm"],
+[data-device="tablet"] .ince-insaat-grid button[class*="rounded-lg"] span[class*="font-bold"][class*="text-base"] {
+  font-size: 16px !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+}
+[data-device="tablet"] .ince-insaat-grid button[class*="rounded-lg"] span[class*="text-xs"] {
+  font-size: 13px !important;
+}
+[data-device="tablet"] .ince-insaat-grid button[class*="rounded-lg"] span[class*="text-\[10px\]"] {
+  font-size: 13px !important;
+}
+
+/* İnce inşaat number badges: bigger */
+[data-device="tablet"] .ince-insaat-grid button span[class*="w-5"][class*="h-5"][class*="rounded-full"] {
+  width: 28px !important;
+  height: 28px !important;
+  line-height: 28px !important;
+  font-size: 12px !important;
+}
+
+/* ===== VARSAYILAN İNŞAAT ŞABLONU POPUP: Tablet Optimizations ===== */
+
+/* Popup wider on tablet */
+[data-device="tablet"] .construction-template-popup {
+  max-width: 95vw !important;
+  max-height: 95vh !important;
+}
+
+/* Tab buttons bigger */
+[data-device="tablet"] .construction-template-popup .template-tab-btn {
+  font-size: 15px !important;
+  padding: 14px 8px !important;
+  min-height: 48px !important;
+}
+
+/* Top-right add button (Kat Ekle / Kategori Ekle / Grup Ekle / Alan Ekle) */
+[data-device="tablet"] .construction-template-popup .template-add-floor-btn {
+  font-size: 15px !important;
+  padding: 10px 16px !important;
+  min-height: 44px !important;
+  gap: 6px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-add-floor-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Category/Floor reorder arrows (up/down) */
+[data-device="tablet"] .construction-template-popup .template-reorder-btn {
+  padding: 6px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-reorder-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Expand/collapse arrow */
+[data-device="tablet"] .construction-template-popup .template-expand-btn {
+  padding: 8px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-expand-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Category name input */
+[data-device="tablet"] .construction-template-popup input[type="text"] {
+  font-size: 16px !important;
+  padding: 8px 12px !important;
+  min-height: 40px !important;
+}
+
+/* + İş Kalemi / + Madde button */
+[data-device="tablet"] .construction-template-popup .template-add-work-btn {
+  font-size: 15px !important;
+  padding: 10px 14px !important;
+  min-height: 42px !important;
+}
+
+/* Category/Floor delete button (trash icon) */
+[data-device="tablet"] .construction-template-popup .template-delete-floor-btn {
+  padding: 8px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-delete-floor-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Work item reorder arrows */
+[data-device="tablet"] .construction-template-popup .template-work-reorder-btn {
+  padding: 6px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-work-reorder-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Work item delete X button */
+[data-device="tablet"] .construction-template-popup .template-work-delete-btn {
+  padding: 8px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-work-delete-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Bottom İptal button */
+[data-device="tablet"] .construction-template-popup .template-cancel-btn {
+  font-size: 16px !important;
+  padding: 14px 24px !important;
+  min-height: 50px !important;
+}
+
+/* Bottom Kaydet button */
+[data-device="tablet"] .construction-template-popup .template-save-btn {
+  font-size: 16px !important;
+  padding: 14px 24px !important;
+  min-height: 50px !important;
+  gap: 8px !important;
+}
+[data-device="tablet"] .construction-template-popup .template-save-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Work item number badges */
+[data-device="tablet"] .construction-template-popup span[class*="text-xs"][class*="font-mono"] {
+  font-size: 14px !important;
+}
+
+/* Info text */
+[data-device="tablet"] .construction-template-popup p[class*="text-sm"][class*="text-gray-500"] {
+  font-size: 15px !important;
+}
+
+/* Category count badge */
+[data-device="tablet"] .construction-template-popup span[class*="text-xs"][class*="text-gray-400"] {
+  font-size: 14px !important;
+}
+
+/* ===== ŞANTİYE YÖNETİMİ: Tablet Optimizations ===== */
+
+/* Site list: edit & delete buttons bigger */
+[data-device="tablet"] .site-list-actions {
+  gap: 8px !important;
+}
+[data-device="tablet"] .site-list-actions button {
+  padding: 12px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+}
+[data-device="tablet"] .site-list-actions button svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Site delete popup: bigger buttons */
+[data-device="tablet"] .site-delete-popup {
+  max-width: 90vw !important;
+}
+[data-device="tablet"] .site-delete-popup h3 {
+  font-size: 20px !important;
+}
+[data-device="tablet"] .site-delete-popup p {
+  font-size: 15px !important;
+}
+[data-device="tablet"] .site-delete-popup button {
+  font-size: 16px !important;
+  padding: 14px 24px !important;
+  min-height: 50px !important;
+}
+
+/* ===== ŞANTİYE DÜZENLEME POPUP: Tablet Optimizations ===== */
+
+/* Popup wider on tablet */
+[data-device="tablet"] .site-edit-popup {
+  max-width: 95vw !important;
+  max-height: 95vh !important;
+}
+
+/* Tab buttons bigger */
+[data-device="tablet"] .site-edit-popup .site-edit-tab {
+  font-size: 15px !important;
+  padding: 14px 8px !important;
+  min-height: 48px !important;
+}
+
+/* All text inputs bigger */
+[data-device="tablet"] .site-edit-popup input[type="text"],
+[data-device="tablet"] .site-edit-popup input[type="number"],
+[data-device="tablet"] .site-edit-popup input[type="date"],
+[data-device="tablet"] .site-edit-popup select {
+  font-size: 16px !important;
+  padding: 10px 14px !important;
+  min-height: 44px !important;
+}
+
+/* Labels bigger */
+[data-device="tablet"] .site-edit-popup label {
+  font-size: 15px !important;
+}
+
+/* Add buttons (Blok Ekle, + Kat, + İş Kalemi, + Madde) */
+[data-device="tablet"] .site-edit-popup .site-edit-add-btn {
+  font-size: 15px !important;
+  padding: 10px 16px !important;
+  min-height: 44px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-add-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Delete buttons (block/floor trash icons) */
+[data-device="tablet"] .site-edit-popup .site-edit-delete-btn {
+  padding: 10px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-delete-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Reorder arrows (floor/work up/down) */
+[data-device="tablet"] .site-edit-popup .site-edit-reorder-btn {
+  padding: 6px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-reorder-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Unit add buttons (+1, +4) */
+[data-device="tablet"] .site-edit-popup .site-edit-unit-add {
+  font-size: 15px !important;
+  padding: 6px 12px !important;
+  min-height: 36px !important;
+  min-width: 36px !important;
+}
+
+/* Unit reorder buttons */
+[data-device="tablet"] .site-edit-popup .site-edit-unit-reorder {
+  padding: 4px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-unit-reorder svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* Unit delete X buttons */
+[data-device="tablet"] .site-edit-popup .site-edit-unit-delete {
+  padding: 6px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-unit-delete svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* Unit name inputs (smaller context) */
+[data-device="tablet"] .site-edit-popup input.w-20 {
+  width: 100px !important;
+  font-size: 14px !important;
+  padding: 6px 8px !important;
+  min-height: 34px !important;
+}
+
+/* Work item delete X */
+[data-device="tablet"] .site-edit-popup .site-edit-work-delete {
+  padding: 8px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-work-delete svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* Tree navigation + Ekle button */
+[data-device="tablet"] .site-edit-popup .site-edit-tree-add {
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+  min-height: 36px !important;
+}
+
+/* Tree navigation list buttons */
+[data-device="tablet"] .site-edit-popup button[class*="text-left"][class*="px-3"][class*="py-2"] {
+  padding: 12px 14px !important;
+  font-size: 15px !important;
+  min-height: 44px !important;
+}
+
+/* Construction save buttons */
+[data-device="tablet"] .site-edit-popup .site-edit-construction-save {
+  font-size: 16px !important;
+  padding: 14px 20px !important;
+  min-height: 50px !important;
+}
+
+/* Bottom İptal button */
+[data-device="tablet"] .site-edit-popup .site-edit-cancel-btn {
+  font-size: 16px !important;
+  padding: 14px 24px !important;
+  min-height: 50px !important;
+}
+
+/* Bottom Kaydet button */
+[data-device="tablet"] .site-edit-popup .site-edit-save-btn {
+  font-size: 16px !important;
+  padding: 14px 24px !important;
+  min-height: 50px !important;
+  gap: 8px !important;
+}
+[data-device="tablet"] .site-edit-popup .site-edit-save-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Close X button in header */
+[data-device="tablet"] .site-edit-popup button[class*="hover:bg-gray-100"][class*="rounded-lg"] {
+  padding: 10px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+
+/* Daire selection buttons (İnce İnşaat) */
+[data-device="tablet"] .site-edit-popup button[class*="rounded-lg"][class*="text-xs"][class*="font-medium"][class*="border"] {
+  font-size: 14px !important;
+  padding: 10px 14px !important;
+  min-height: 40px !important;
+}
+
+/* Empty state + Blok Ekle text button */
+[data-device="tablet"] .site-edit-popup .text-center button[class*="text-\[#c0392b\]"] {
+  font-size: 15px !important;
+  padding: 8px 16px !important;
+  min-height: 40px !important;
+}
+
+/* Şablondan Yükle button */
+[data-device="tablet"] .site-edit-popup button[class*="bg-\[#1e3a5f\]"][class*="text-\[11px\]"],
+[data-device="tablet"] .site-edit-popup button[class*="bg-\[#1e3a5f\]"][class*="text-sm"][class*="rounded-lg"] {
+  font-size: 15px !important;
+  padding: 12px 20px !important;
+  min-height: 44px !important;
+}
+
+
+/* iPad scroll hint — varsayılan gizli, sadece iPad'de görünür */
+.ipad-scroll-hint { display: none; }
+
+/* === iPad-only: medya yükleme butonları (büyük dokunma alanı) === */
+/* Pointer:coarse ŞARTI YOK — iPad Safari "Request Desktop Site" modunda fail edebilir */
+@media (min-width: 600px) and (max-width: 1279px) {
+  .ipad-scroll-hint { display: block !important; }
+
+  /* Tüm 3 buton (Foto Çek / Video Çek / Galeriden Seç) */
+  .media-upload-btn-wrap > button,
+  .media-upload-btn-wrap > label,
+  label.media-upload-btn,
+  button.media-upload-btn {
+    min-height: 5rem !important;
+    height: 5rem !important;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.5rem !important;
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+    font-size: 1.05rem !important;
+    line-height: 1.2 !important;
+    gap: 0.625rem !important;
+    border-radius: 9999px !important;
+    box-sizing: border-box !important;
+  }
+  .media-upload-btn-wrap > button > svg,
+  .media-upload-btn-wrap > label > svg,
+  label.media-upload-btn > svg,
+  button.media-upload-btn > svg {
+    width: 24px !important;
+    height: 24px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Belgeler popup butonları (Belge Tara / Dosya Yükle / Fotoğraf Çek) — iPad'de büyük ve oval */
+  button.belge-upload-btn,
+  label.belge-upload-btn {
+    min-height: 4rem !important;
+    height: 4rem !important;
+    padding-top: 1.1rem !important;
+    padding-bottom: 1.1rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    font-size: 1.05rem !important;
+    line-height: 1.2 !important;
+    gap: 0.625rem !important;
+    border-radius: 9999px !important;
+    box-sizing: border-box !important;
+  }
+  button.belge-upload-btn > svg,
+  label.belge-upload-btn > svg {
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* === Tablo hücre butonları için tıklama efekti (tüm cihazlar) ===
+   Press anında scale küçülür + parlaklık düşer + mavi halka çıkar.
+   Sadece :active esnasında görünür (PC'de hover'ı etkilemez). */
+.construction-cell-btn {
+  -webkit-tap-highlight-color: transparent;
+}
+.construction-cell-btn:active {
+  transform: scale(0.94) !important;
+  filter: brightness(0.7) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.65), 0 4px 12px rgba(59, 130, 246, 0.35) !important;
+  transition: transform 0.06s ease-out, filter 0.06s ease-out, box-shadow 0.06s ease-out !important;
+}
+
+/* === iPad-only: medya thumbnail grid (3 sütun × 2 satır, sonra dikey kaydırma) === */
+@media (min-width: 600px) and (max-width: 1279px) and (pointer: coarse) {
+  .media-grid-container {
+    flex: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    /* 2 satır × 11rem + gap + padding ≈ 24rem */
+    max-height: 24rem !important;
+  }
+  .media-thumb-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-auto-rows: 11rem !important;
+    grid-auto-flow: row !important;
+    gap: 0.75rem !important;
+  }
+  .media-thumb-grid > * {
+    width: 100% !important;
+    height: 11rem !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+  /* Görünür dikey kaydırma çubuğu */
+  .media-grid-container::-webkit-scrollbar {
+    width: 8px;
+  }
+  .media-grid-container::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.05);
+    border-radius: 4px;
+  }
+  .media-grid-container::-webkit-scrollbar-thumb {
+    background: rgba(192,57,43,0.5);
+    border-radius: 4px;
+  }
+}
+
+/* ===== TELEFON (MOBİL) — premium mobil kabuk içeriği sığsın ===== */
+/* Sadece data-device="mobile" (telefon) — web/iPad etkilenmez */
+[data-device="mobile"] main {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Geniş (3+) kolonlu grid'leri telefonda 2 kolona indir → yatay taşma yok */
+[data-device="mobile"] main [class*="grid-cols-3"],
+[data-device="mobile"] main [class*="grid-cols-4"],
+[data-device="mobile"] main [class*="grid-cols-5"],
+[data-device="mobile"] main [class*="grid-cols-6"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+/* Taşan tablolar telefonda yatay kaydırılabilir kalsın */
+[data-device="mobile"] main table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== TELEFON: PREMIUM / ELEGANT katman (gölge + animasyon) ===== */
+
+/* Sayfa içeriği yumuşak giriş animasyonu (her gezinmede) */
+@keyframes mobileFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+[data-device="mobile"] main > * {
+  animation: mobileFadeIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Kabuğa derinlik: header + alt sekme çubuğu */
+[data-device="mobile"] > header {
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.20);
+  z-index: 20;
+}
+[data-device="mobile"] > nav {
+  box-shadow: 0 -2px 18px rgba(16, 24, 40, 0.10);
+}
+
+/* Kartlara yumuşak gölge + zarif köşe (her sayfadaki beyaz kartlar) */
+[data-device="mobile"] main [class*="bg-white"][class*="rounded-lg"],
+[data-device="mobile"] main [class*="bg-white"][class*="rounded-xl"],
+[data-device="mobile"] main [class*="bg-white"][class*="rounded-2xl"] {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 22px rgba(16, 24, 40, 0.07) !important;
+  border: 1px solid rgba(20, 20, 46, 0.05);
+}
+
+/* Tüm interaktif öğelere yumuşak geçiş */
+[data-device="mobile"] main button,
+[data-device="mobile"] main a,
+[data-device="mobile"] main [role="button"] {
+  transition: transform 0.13s ease, box-shadow 0.18s ease, background-color 0.18s ease, filter 0.13s ease !important;
+}
+
+/* Dokunma (press) animasyonu — buton ve buton-benzeri linkler */
+[data-device="mobile"] main button:active,
+[data-device="mobile"] main a[class*="rounded"]:active,
+[data-device="mobile"] main [role="button"]:active {
+  transform: scale(0.97);
+  filter: brightness(0.97);
+}
+
+/* Primary (kırmızı) butona zarif renkli gölge → buton olduğu belli */
+[data-device="mobile"] main [class*="bg-\[#c0392b\]"],
+[data-device="mobile"] main [class*="bg-\[#922b21\]"] {
+  box-shadow: 0 4px 14px rgba(192, 57, 43, 0.30);
+}
+
+/* Inputlara yumuşak köşe + odak halkası yumuşaklığı */
+[data-device="mobile"] main input,
+[data-device="mobile"] main select,
+[data-device="mobile"] main textarea {
+  border-radius: 12px !important;
+}
+
+/* Yumuşak kaydırma */
+[data-device="mobile"] main {
+  scroll-behavior: smooth;
+}
+
+/* Modal/popup içeriği zarif yükselsin */
+@keyframes mobilePopIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+[data-device="mobile"] main .fixed.inset-0 > div {
+  animation: mobilePopIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Tam-ekran modal başlığı telefon status bar'ının (saat/wifi/şarj) ALTINDA başlasın.
+   Web/masaüstünde env(safe-area-inset-top)=0 → padding-top: 0.75rem (mevcut py-3 ile aynı) → etkisiz. */
+.modal-safe-top {
+  padding-top: calc(0.75rem + env(safe-area-inset-top)) !important;
+}
+
+/* Metraj: yeni eklenen kaleme doğru vurgu (satır arka planı kısa süre yanıp söner) */
+@keyframes metrajRowPop {
+  0%   { background-color: rgba(192, 57, 43, 0.18); }
+  60%  { background-color: rgba(192, 57, 43, 0.10); }
+  100% { background-color: transparent; }
+}
+.metraj-row-pop {
+  animation: metrajRowPop 1.2s ease-out;
+}
+
+/* Teslimat: yeni "Kalem Ekle" → alta eklenen kalem fark edilsin (slide/pop + ring vurgusu) */
+@keyframes teslimatItemPop {
+  0%   { transform: scale(0.96) translateY(10px); opacity: 0; box-shadow: 0 0 0 0 rgba(30, 58, 95, 0.45); }
+  55%  { box-shadow: 0 0 0 6px rgba(30, 58, 95, 0.15); }
+  100% { transform: scale(1) translateY(0); opacity: 1; box-shadow: 0 0 0 0 rgba(30, 58, 95, 0); }
+}
+.teslimat-item-new { animation: teslimatItemPop 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Not Defteri (mobil): not seçilince/yeni not açılınca editör sağdan kayarak gelsin (net "açıldı" hissi) */
+@keyframes noteEditorIn {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.note-editor-in { animation: noteEditorIn 0.26s ease-out; }
+
+/* Not Defteri: not silinince ~1 sn görünüp kaybolan bildirim (toast) */
+@keyframes noteToastIn {
+  0%   { opacity: 0; transform: scale(0.88) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes noteToastOut {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.92); }
+}
+.note-toast-in  { animation: noteToastIn 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
+.note-toast-out { animation: noteToastOut 0.28s ease-in forwards; }
+
+/* ===== GİRİŞ EKRANI — geçişli fotoğraf slaytı (crossfade + Ken Burns) ===== */
+.login-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  will-change: opacity, transform;
+  /* 5 görsel × 6s = 30s döngü */
+  animation: loginSlideshow 30s ease-in-out infinite;
+}
+@keyframes loginSlideshow {
+  0%   { opacity: 0; transform: scale(1.05); }
+  4%   { opacity: 1; }
+  18%  { opacity: 1; }
+  22%  { opacity: 0; transform: scale(1.12); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+@keyframes loginCardEnter {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.login-card-enter {
+  animation: loginCardEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Hareket azaltma tercihinde slaytı durdur, ilk kareyi göster */
+@media (prefers-reduced-motion: reduce) {
+  .login-slide { animation: none; opacity: 0; }
+  .login-slide:first-child { opacity: 1; }
+}
+
+/* =================================================================
+   MOBİL TASARIM SİSTEMİ (additive katman) — yalnızca telefon
+   HIG / Material 3 / NN-g best-practice'lerine göre.
+   Tüm kurallar [data-device="mobile"] altında veya global güvenli
+   (@media prefers-reduced-motion / scoped :focus-visible).
+   Masaüstü ve iPad (tablet) DAVRANIŞI DEĞİŞMEZ. Mevcut
+   .modal-safe-top ve mevcut @keyframes'lere dokunulmadı (yeni isimler).
+   ================================================================= */
+
+/* ---- 1) TASARIM TOKEN'LARI (inert: referans verilmedikçe etkisiz) ---- */
+:root {
+  --mob-navy: #1e3a5f;
+  --mob-navy-deep: #1a1a2e;
+  --mob-red: #c0392b;
+  --mob-red-dark: #922b21;
+  /* Anlamsal durum paleti — tek kaynak */
+  --mob-success: #27ae60;
+  --mob-pending: #b8770f;          /* beyaz yazı için kontrast-güvenli amber */
+  --mob-pending-surface: #f39c12;
+  --mob-error: #c0392b;
+  --mob-info: #1e3a5f;
+  /* Koyu yüzey yükselti skalası (gölge yerine ton) */
+  --mob-surface-0: #1a1a2e;
+  --mob-surface-1: #232338;
+  --mob-surface-2: #2c2c46;
+  /* Hareket — M3 easing */
+  --mob-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --mob-ease-emph-dec: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --mob-ease-emph-acc: cubic-bezier(0.3, 0, 0.8, 0.15);
+  /* Hareket — süre adımları (M3 short/medium) */
+  --mob-dur-short: 150ms;
+  --mob-dur-med: 280ms;
+  --mob-dur-long: 420ms;
+  /* Köşe yarıçapı / boşluk / dokunma hedefi */
+  --mob-radius-sm: 8px;
+  --mob-radius-md: 12px;
+  --mob-radius-lg: 16px;
+  --mob-radius-pill: 999px;
+  --mob-gap: 8px;
+  --mob-touch: 48px;
+  --mob-touch-min: 44px;
+}
+
+/* ---- 2) GLOBAL DOKUNMA DAVRANIŞI (yalnız mobil) ---- */
+[data-device="mobile"] button,
+[data-device="mobile"] a,
+[data-device="mobile"] [role="button"],
+[data-device="mobile"] input,
+[data-device="mobile"] select,
+[data-device="mobile"] textarea {
+  touch-action: manipulation;                 /* 300ms tap gecikmesini kaldır */
+  -webkit-tap-highlight-color: transparent;
+}
+/* iOS odakta zoom'u engelle: input metni en az 16px */
+[data-device="mobile"] input,
+[data-device="mobile"] select,
+[data-device="mobile"] textarea {
+  font-size: 16px;
+}
+/* Momentum + overscroll: içerik/modaller zincirlemesin */
+[data-device="mobile"] main,
+[data-device="mobile"] .fixed.inset-0 {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ---- 3) DOKUNMA HEDEFİ TABANI — KABUK (thumb zone) ---- */
+[data-device="mobile"] > nav > a,
+[data-device="mobile"] > nav > button {
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+[data-device="mobile"] > header button {
+  min-width: var(--mob-touch-min);
+  min-height: var(--mob-touch-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- 4) BASMA GERİ BİLDİRİMİ — KABUK (main DIŞI: header/nav/menü) ---- */
+[data-device="mobile"] > header button,
+[data-device="mobile"] > nav a,
+[data-device="mobile"] > nav button,
+[data-device="mobile"] .fixed.inset-0 a,
+[data-device="mobile"] .fixed.inset-0 button {
+  transition: transform var(--mob-dur-short) var(--mob-ease-standard),
+              background-color var(--mob-dur-med) var(--mob-ease-standard),
+              filter var(--mob-dur-short) var(--mob-ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+[data-device="mobile"] > header button:active,
+[data-device="mobile"] > nav a:active,
+[data-device="mobile"] > nav button:active,
+[data-device="mobile"] .fixed.inset-0 button:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
+/* Menü overlay satırları: basışta net ayrım */
+[data-device="mobile"] .fixed.inset-0 a:active,
+[data-device="mobile"] .fixed.inset-0 [role="button"]:active {
+  background-color: rgba(20, 20, 46, 0.06);
+}
+
+/* ---- 5) YENİDEN KULLANILABİLİR DOKUNMA YARDIMCISI: .tap / .pressable ---- */
+[data-device="mobile"] .tap,
+[data-device="mobile"] .pressable {
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--mob-dur-short) var(--mob-ease-standard),
+              filter var(--mob-dur-short) var(--mob-ease-standard);
+}
+[data-device="mobile"] .tap:active,
+[data-device="mobile"] .pressable:active {
+  transform: scale(0.97);
+  filter: brightness(0.96);
+}
+/* Material tarzı ripple (yalnız .pressable; overflow gizli olmalı) */
+[data-device="mobile"] .pressable {
+  overflow: hidden;
+}
+[data-device="mobile"] .pressable::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center,
+              rgba(255, 255, 255, 0.35) 0%,
+              rgba(255, 255, 255, 0.35) 35%,
+              transparent 60%);
+  opacity: 0;
+  transform: scale(0.4);
+  pointer-events: none;
+  transition: opacity var(--mob-dur-med) var(--mob-ease-standard),
+              transform var(--mob-dur-med) var(--mob-ease-emph-dec);
+}
+[data-device="mobile"] .pressable.pressable-dark::after {
+  background: radial-gradient(circle at center,
+              rgba(20, 20, 46, 0.18) 0%,
+              rgba(20, 20, 46, 0.18) 35%,
+              transparent 60%);
+}
+[data-device="mobile"] .pressable:active::after {
+  opacity: 1;
+  transform: scale(1);
+  transition: none;
+}
+
+/* ---- 6) KART HOVER'IN TELEFONDA TAKILMASINI ENGELLE (tablet'in mobil eşi) ---- */
+[data-device="mobile"] .card-hover:hover {
+  transform: none;
+  box-shadow: none;
+}
+[data-device="mobile"] .card-hover:active {
+  transform: scale(0.98);
+}
+
+/* ---- 7) ODAK HALKASI (klavye/erişilebilirlik) — mobil kapsamlı ---- */
+[data-device="mobile"] :focus-visible {
+  outline: 2px solid var(--mob-info);
+  outline-offset: 2px;
+  border-radius: var(--mob-radius-sm);
+}
+
+/* ---- 8) DURUM ÇİP'LERİ (opt-in): renk + ikon/etiket birlikte ---- */
+[data-device="mobile"] .mob-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  min-height: 24px;
+  border-radius: var(--mob-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+[data-device="mobile"] .mob-chip-success { background: var(--mob-success); color: #fff; }
+[data-device="mobile"] .mob-chip-pending { background: var(--mob-pending); color: #fff; }
+[data-device="mobile"] .mob-chip-error   { background: var(--mob-error);   color: #fff; }
+[data-device="mobile"] .mob-chip-info    { background: var(--mob-info);     color: #fff; }
+
+/* ---- 9) DAHA İNCE / KOYU SCROLLBAR (mobil) ---- */
+[data-device="mobile"] ::-webkit-scrollbar { width: 4px; height: 4px; }
+[data-device="mobile"] ::-webkit-scrollbar-track { background: transparent; }
+[data-device="mobile"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: var(--mob-radius-pill);
+}
+
+/* ---- 10) YENİDEN KULLANILABİLİR KEYFRAME'LER (opt-in, yeni isimler) ---- */
+@keyframes mobFadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Sohbet penceresi geçiş animasyonu (ör. ilet sonrası hedef sohbete gidiş) */
+@keyframes chatEnter {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.chat-enter { animation: chatEnter 0.24s ease-out; }
+@media (prefers-reduced-motion: reduce) { .chat-enter { animation: none; } }
+[data-device="mobile"] .mob-fade-up {
+  animation: mobFadeInUp var(--mob-dur-med) var(--mob-ease-emph-dec) both;
+}
+@keyframes mobSkeleton {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+[data-device="mobile"] .mob-skeleton {
+  background: linear-gradient(90deg,
+    rgba(20, 20, 46, 0.06) 25%,
+    rgba(20, 20, 46, 0.12) 37%,
+    rgba(20, 20, 46, 0.06) 63%);
+  background-size: 200% 100%;
+  animation: mobSkeleton 1.4s var(--mob-ease-standard) infinite;
+  border-radius: var(--mob-radius-md);
+}
+
+/* ---- 11) HAREKET AZALTMA GÜVENCESİ (tam — mevcut login bloğuna ek) ---- */
+@media (prefers-reduced-motion: reduce) {
+  [data-device="mobile"] main > *,
+  [data-device="mobile"] main .fixed.inset-0 > div,
+  [data-device="mobile"] .mob-fade-up,
+  [data-device="mobile"] .mob-skeleton,
+  .teslimat-item-new,
+  .note-editor-in,
+  .note-toast-in,
+  .note-toast-out {
+    animation: none !important;
+  }
+  [data-device="mobile"] .pressable::after { transition: none !important; }
+  [data-device="mobile"] *:active {
+    transform: none !important;
+    filter: none !important;
+  }
+}

@@ -1,0 +1,18 @@
+Hemen Etkili (Kolay-Orta)
+
+İş Takip / Görev Atama — Pinlere veya dairelere "yapılacak iş" atanabilir, sorumlu kişi seçilir, tamamlanma durumu takip edilir (Yapılacak → Devam Ediyor → Tamamlandı)
+Bildirim Sistemi Genişletme — Yeni pin/medya eklendiğinde, görev atandığında ilgili kullanıcılara push bildirim
+Raporlama Paneli — Blok/kat bazında tamamlanma yüzdeleri, checklist ilerleme özeti, grafik/tablo olarak dashboard
+Tarihçe / Log — Kim, ne zaman, hangi değişikliği yaptı — pin ekleme, medya yükleme, checklist tamamlama logları
+Yorum Sistemi — Pinlere veya dairelere yorum bırakma, takım içi iletişim
+Orta Zorlukta
+
+Takvim / Zaman Çizelgesi — İnşaat aşamalarını takvimde görüntüleme, deadline'lar, Gantt chart benzeri görünüm
+Eksik / Kusur Takibi (Punch List) — Tespit edilen eksikler fotoğrafla kaydedilip atanır, düzeltilince kapatılır
+PDF Karşılaştırma — Revize edilen projelerin eski versiyonla yan yana karşılaştırılması
+Toplu Daire İşlemleri — Bir kattaki tüm dairelere aynı anda checklist durumu atama
+İleri Seviye
+
+Mobil PWA / Offline Modu — Sahadayken internet olmasa da çalışıp, bağlantı gelince senkronize etme
+Hakedis Takibi — İnşaat ilerleme yüzdesine göre hakediş hesaplama
+Müteahhit / Taşeron Portal — Dış firmalara sınırlı erişimli portal, sadece kendi işlerini görsünler

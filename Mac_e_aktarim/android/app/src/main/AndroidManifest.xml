@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!-- FCM varsayılan bildirim ikonu (meşale silueti, beyaz) + accent rengi.
+             Yoksa Android status bar'da gri kare gösterir. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_flame" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
+            <!-- Paylaşım hedefi: başka uygulamalardan foto/video/dosya al → sohbete ilet -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="application/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="application/*" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- ===== Gelen arama (native çalan ekran) ===== -->
+
+        <!-- @capacitor/push-notifications'in kendi FCM servisini KALDIR; yerine bizimkini koy.
+             Böylece data.type=="call" push'larını native yakalayıp full-screen-intent gösteririz;
+             diğer push'ları CallMessagingService super.onMessageReceived ile plugine devreder. -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+
+        <service
+            android:name=".CallMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Gelen arama ÇALMA aşaması foreground servis (type=phoneCall). -->
+        <service
+            android:name=".CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <!-- EKRAN PAYLAŞIMI: LiveKit SDK'sının HAZIR ScreenCaptureService'i (kendi service'imizi
+             YAZMIYORUZ). SDK kendi AndroidManifest'inde service'i (foregroundServiceType=mediaProjection,
+             stopWithTask=true) VE FOREGROUND_SERVICE_MEDIA_PROJECTION iznini ZATEN bildiriyor; AGP
+             manifest-merger bunları uygulamaya otomatik birleştirir → BURAYA service EKLEMEYE GEREK YOK
+             (çift tanım merge çakışması riskini önlemek için açıkça eklemiyoruz). SDK'nın start()'ı
+             null notification'da DEFAULT_NOTIFICATION_ID + DEFAULT_CHANNEL_ID ile varsayılan bildirim
+             üretir → ScreenCaptureParams(resultData) yeterli. -->
+
+        <!-- Kilit ekranı üstünde tam ekran çalan ekran. -->
+        <activity
+            android:name=".IncomingCallActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=".IncomingCall"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <!-- Reddet aksiyonu (bildirim/çalan ekran düğmesi). -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
+
+        <!-- WhatsApp-tarzı sohbet bildirimi: bildirimden direkt cevap (RemoteInput). -->
+        <receiver
+            android:name=".ChatReplyReceiver"
+            android:exported="false" />
+
+        <!-- WhatsApp-tarzı sohbet bildirimi: "Okundu yap" aksiyonu. -->
+        <receiver
+            android:name=".ChatMarkReadReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sohbet sesli mesaj + sesli/görüntülü arama (getUserMedia / WebView medya yakalama) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Biyometrik uygulama kilidi -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Dosya/medya indirme + bildirim -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Arka planda data-only FCM (mesaj/arama) tesliminin güvenilirliği: pil optimizasyonu
+         muafiyeti diyaloğu (kurumsal iletişim uygulaması — core işlev bildirime dayalı). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Gelen arama: kilit ekranı üstünde tam ekran çalan ekran + foreground servis -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- Ekran paylaşımı: LiveKit ScreenCaptureService (MediaProjection) foreground servisi (Android 14+ zorunlu) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- VIBRATE haptics eklentisinden gelir; çalan ekran titreşimi için açıkça da bildiriyoruz -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+</manifest>

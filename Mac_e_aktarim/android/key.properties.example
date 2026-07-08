@@ -1,0 +1,13 @@
+# ŞABLON — bunu `key.properties` adıyla KOPYALA ve gerçek değerlerle doldur.
+# `key.properties` .gitignore'da, ASLA commit edilmez. Keystore'u da repoya koyma.
+#
+# Keystore üretimi (bir kez, android/app/ içinde):
+#   keytool -genkeypair -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# storeFile yolu android/app/'a GÖRELİ çözülür (file()), yani upload-keystore.jks → android/app/upload-keystore.jks
+# Bkz. docs/play-release/01-signing-build.md
+
+storeFile=upload-keystore.jks
+storePassword=BURAYA_KEYSTORE_SIFRESI
+keyAlias=upload
+keyPassword=BURAYA_ANAHTAR_SIFRESI

@@ -1,0 +1,116 @@
+apply plugin: 'com.android.application'
+// SPIKE: Native LiveKit Android SDK için Kotlin desteği (tek plugin: LiveKitCallPlugin.kt)
+apply plugin: 'org.jetbrains.kotlin.android'
+
+// Release imzalama: tüm gizli değerler ../key.properties'ten okunur (repoya COMMIT EDİLMEZ,
+// .gitignore'da). Dosya yoksa release debug anahtarına düşer (build kırılmaz; ama Play'e
+// yüklenecek imzalı AAB için key.properties + keystore ZORUNLU).
+// Bkz. docs/play-release/01-signing-build.md
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "com.mesalegrup.uzaktansantiye"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    // Kotlin↔Java hedefi capacitor.build.gradle ile EŞLEŞMELİ (orada Java 21 set ediliyor).
+    // Farklı olursa AGP build hatası verir.
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    kotlinOptions {
+        jvmTarget = '21'
+    }
+    defaultConfig {
+        applicationId "com.mesalegrup.uzaktansantiye"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            // Değerler ../key.properties'ten gelir (yoksa boş kalır → aşağıda debug'a düşülür).
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            // APK küçültme: test cihazı arm64 → SADECE arm64-v8a paketle (~73MB → ~30MB).
+            // x86/x86_64 yalnız emülatör; armeabi-v7a çok eski 32-bit telefonlar — testte gereksiz.
+            // Asıl şişkinlik native LiveKit/WebRTC .so dosyalarının 4 ABI için pakette olması.
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
+        }
+        release {
+            // key.properties varsa upload key ile imzala; yoksa debug (yalnız yerel test, Play'e YÜKLENMEZ).
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Play (AAB): gerçek cihaz ABI'leri (x86/x86_64 emülatör hariç). Play her cihaza
+            // yalnız uygun ABI'yi indirir → kullanıcı indirmesi tek-ABI (~25-30MB).
+            ndk {
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.biometric:biometric:1.1.0"
+    // Gelen arama: uygulama ön planda mı (ProcessLifecycleOwner) — çift çalmayı önlemek için
+    implementation "androidx.lifecycle:lifecycle-process:2.8.7"
+    // NotificationCompat.CallStyle + ServiceCompat.startForeground için androidx.core (1.17.0)
+    implementation "androidx.core:core:$androidxCoreVersion"
+    // FCM: CallMessagingService, @capacitor pushnotifications MessagingService'i (RemoteMessage,
+    // FirebaseMessagingService) EXTEND ediyor. Plugin bunu 'implementation' (api değil) olarak
+    // bildirdiğinden app modülünün derleme classpath'ine açıkça eklenmeli.
+    implementation "com.google.firebase:firebase-messaging:25.0.1"
+    // SPIKE: Native LiveKit Android SDK (Kotlin). SABİT sürüm, wildcard yok.
+    // minSdk 21 (proje 24 ✓). webrtc-sdk transitive .so (4 ABI) → APK büyür (beklenen).
+    implementation "io.livekit:livekit-android:2.25.3"
+    // Kotlin coroutines (LiveKit zaten transitive çeker; explicit pin ile sürüm netleşir).
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

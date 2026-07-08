@@ -1,0 +1,1348 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== KULLANICI YÖNETİMİ ====================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  SITE_CHIEF
+  USER
+  VIEWER
+  MUHASEBE
+}
+
+model User {
+  id              String   @id @default(uuid())
+  username        String   @unique
+  email           String   @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  phone           String?
+  role            UserRole   @default(USER) // Ana Rol (primary) — açılış panosunu belirler
+  roles           UserRole[] @default([]) // Atanan tüm roller — yetkiler bunların birleşimidir
+  isActive        Boolean  @default(true)
+  studyankaAccess Boolean  @default(false) @map("studyanka_access")
+  avatarUrl       String?  @map("avatar_url")
+  deletedAt       DateTime? @map("deleted_at") // kullanıcı KENDİ hesabını sildiyse (anonimleştirme zamanı) — admin devre dışı (isActive=false) ile ayrışır
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // İlişkiler
+  comments       Comment[]
+  approvals      Approval[]
+  documents      Document[]
+  costRecords    CostRecord[]
+  notifications  Notification[]
+  deviceTokens   DeviceToken[]
+  auditLogs      AuditLog[]
+  siteMembers    SiteMember[]
+  annotations    PdfAnnotation[]
+  notes          Note[]
+  noteCategories NoteCategory[]
+  sharedNotes    SharedNote[]
+  conversations    ConversationParticipant[]
+  messagesSent     Message[]
+  messageReceipts  MessageReceipt[]
+  messageReactions MessageReaction[]
+  messageHides     MessageHide[]
+
+  @@map("users")
+}
+
+// ==================== NOT DEFTERİ ====================
+
+model NoteCategory {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes Note[]
+
+  @@index([userId])
+  @@map("note_categories")
+}
+
+model Note {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  title        String    @default("")
+  content      String    @default("") @db.Text
+  categoryId   String?   @map("category_id")
+  isFavorite   Boolean   @default(false) @map("is_favorite")
+  isTrashed    Boolean   @default(false) @map("is_trashed")
+  trashedAt    DateTime? @map("trashed_at")
+  // Aktif paylaşıma ait SharedNote id'si (varsa). Kaldırılırsa null olur,
+  // SharedNote kaydı silinmez — paylaşım diğer kullanıcılarda görünmeye devam eder.
+  sharedNoteId String?   @map("shared_note_id")
+  audioUrl     String?   @map("audio_url")
+  transcript   String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category NoteCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([userId, isTrashed])
+  @@index([userId, isFavorite])
+  @@map("notes")
+}
+
+// Paylaşılan notların kalıcı görüntüsü (snapshot).
+// Bir kullanıcı notunu Paylaşımlar'a eklediğinde oluşturulur. Sahibi
+// paylaşımdan kaldırsa bile silinmez — diğer kullanıcılarda görünür kalır.
+model SharedNote {
+  id             String   @id @default(uuid())
+  originalNoteId String?  @map("original_note_id") // sahibinin orijinal not id'si (silinirse null kalabilir)
+  sharedByUserId String   @map("shared_by_user_id")
+  sharedByName   String   @map("shared_by_name") // paylaşan kişinin adı (snapshot)
+  title          String   @default("")
+  content        String   @default("") @db.Text
+  segments       Json?    @map("segments") // [{ id, text, userId, userName, at, deletedAt? }]
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  sharedBy User @relation(fields: [sharedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([sharedByUserId])
+  @@map("shared_notes")
+}
+
+// ==================== ŞANTİYE YÖNETİMİ ====================
+
+enum SiteStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+  PLANNED
+}
+
+model ConstructionSite {
+  id            String     @id @default(uuid())
+  name          String
+  description   String?
+  address       String?
+  status        SiteStatus @default(ACTIVE)
+  startDate     DateTime?
+  endDate       DateTime?
+  imageUrl      String?
+  config        Json? // Esnek konfigürasyon (JSONB)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?  @map("deleted_at")
+  deletedBy     String?    @map("deleted_by")
+  deletedByName String?    @map("deleted_by_name")
+
+  // İlişkiler
+  blocks             Block[]
+  categories         Category[]
+  costRecords        CostRecord[]
+  members            SiteMember[]
+  checklistTemplates UnitChecklistTemplate[]
+  constructionFloors ConstructionFloor[]
+  personnelEntries   PersonnelEntry[]
+  sitePersonnel      SitePersonnel[]
+  teslimatlar        Teslimat[]
+  arizalar           Ariza[]
+
+  @@map("construction_sites")
+}
+
+// Şantiye-Kullanıcı İlişkisi (hangi kullanıcı hangi şantiyeye erişebilir)
+model SiteMember {
+  id     String   @id @default(uuid())
+  siteId String
+  userId String
+  role   UserRole @default(USER)
+
+  site ConstructionSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, userId])
+  @@map("site_members")
+}
+
+// ==================== BLOK YÖNETİMİ ====================
+
+model Block {
+  id        String   @id @default(uuid())
+  siteId    String
+  name      String // A Blok, B Blok, C Blok
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site      ConstructionSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  floors    Floor[]
+  documents Document[]
+  arizalar  Ariza[]
+
+  @@map("blocks")
+}
+
+model Floor {
+  id        String   @id @default(uuid())
+  blockId   String
+  name      String // Bodrum Kat, Zemin Kat, Kat 1, Kat 2...
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  block           Block                 @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  units           Unit[]
+  pageAttachments FloorPageAttachment[]
+  arizalar        Ariza[]
+
+  @@map("floors")
+}
+
+model Unit {
+  id        String   @id @default(uuid())
+  floorId   String
+  name      String // Daire 1, Daire 2, Ortak Alan...
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  floor              Floor                   @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  taskEntries        TaskEntry[]
+  checklistTemplates UnitChecklistTemplate[]
+  arizalar           Ariza[]
+
+  @@map("units")
+}
+
+// ==================== KATEGORİ SİSTEMİ (Hiyerarşik) ====================
+
+model Category {
+  id               String   @id @default(uuid())
+  siteId           String
+  name             String // Kaba İnşaat, İnce İşler, Kalıp-Beton-Tuğla vs.
+  description      String?
+  parentCategoryId String? // Self-referencing: alt kategori
+  order            Int      @default(0)
+  color            String? // Renk kodu
+  imageUrl         String? // Arka plan fotoğrafı
+  config           Json? // Esnek konfigürasyon (JSONB)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  site               ConstructionSite        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  parentCategory     Category?               @relation("CategoryHierarchy", fields: [parentCategoryId], references: [id])
+  subCategories      Category[]              @relation("CategoryHierarchy")
+  workItems          WorkItem[]
+  taskEntries        TaskEntry[]
+  costRecords        CostRecord[]
+  documents          Document[]
+  checklistTemplates UnitChecklistTemplate[]
+
+  @@map("categories")
+}
+
+// ==================== İŞ KALEMLERİ ====================
+
+enum WorkStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+model WorkItem {
+  id          String     @id @default(uuid())
+  categoryId  String
+  name        String // Ahşap Karkas Kurulumu, OSB Çakılması vs.
+  description String?
+  progress    Int        @default(0) // 0-100
+  status      WorkStatus @default(NOT_STARTED)
+  startDate   DateTime?
+  endDate     DateTime?
+  imageUrl    String?
+  config      Json? // Esnek ek alanlar (JSONB)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  taskEntries TaskEntry[]
+  documents   Document[]
+  comments    Comment[]
+  approvals   Approval[]
+
+  @@map("work_items")
+}
+
+// ==================== GÖREV GİRİŞLERİ (Daire/Kat Bazlı) ====================
+
+model TaskEntry {
+  id         String     @id @default(uuid())
+  workItemId String?
+  categoryId String?
+  unitId     String?
+  name       String // Daire 1, Bodrum Kat Ortak vs.
+  progress   Int        @default(0) // 0-100
+  status     WorkStatus @default(NOT_STARTED)
+  startDate  DateTime?
+  endDate    DateTime?
+  assignedTo String?
+  config     Json? // Esnek ek alanlar (JSONB)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  workItem  WorkItem?  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  category  Category?  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  unit      Unit?      @relation(fields: [unitId], references: [id])
+  documents Document[]
+  comments  Comment[]
+  approvals Approval[]
+
+  @@map("task_entries")
+}
+
+// ==================== DOSYA YÖNETİMİ ====================
+
+enum FileType {
+  PHOTO
+  PDF
+  INVOICE
+  DOCUMENT
+  OTHER
+}
+
+model Document {
+  id               String   @id @default(uuid())
+  workItemId       String?
+  taskEntryId      String?
+  costRecordId     String?
+  categoryId       String?
+  blockId          String?
+  fileName         String
+  fileUrl          String
+  fileType         FileType @default(OTHER)
+  fileSize         Int? // Byte
+  mimeType         String?
+  docGroup         String? // Ruhsatlandırma grup adı (Mimari Proje, Statik Proje, vb.)
+  sourceDocumentId String? // Ruhsatlandırma kopyası ise orijinal dokümanın ID'si
+  uploadedBy       String
+  createdAt        DateTime @default(now())
+
+  workItem         WorkItem?             @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  taskEntry        TaskEntry?            @relation(fields: [taskEntryId], references: [id], onDelete: Cascade)
+  costRecord       CostRecord?           @relation(fields: [costRecordId], references: [id], onDelete: Cascade)
+  category         Category?             @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  block            Block?                @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  uploader         User                  @relation(fields: [uploadedBy], references: [id])
+  sourceDocument   Document?             @relation("DocumentCopies", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  copies           Document[]            @relation("DocumentCopies")
+  comments         Comment[]
+  approvals        Approval[]
+  annotations      PdfAnnotation[]
+  floorAttachments FloorPageAttachment[]
+
+  @@map("documents")
+}
+
+// ==================== YORUM SİSTEMİ ====================
+
+model Comment {
+  id          String   @id @default(uuid())
+  userId      String
+  text        String
+  workItemId  String?
+  taskEntryId String?
+  documentId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  workItem  WorkItem?  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  taskEntry TaskEntry? @relation(fields: [taskEntryId], references: [id], onDelete: Cascade)
+  document  Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+// ==================== ONAY SİSTEMİ ====================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Approval {
+  id          String         @id @default(uuid())
+  userId      String
+  status      ApprovalStatus @default(PENDING)
+  comment     String?
+  workItemId  String?
+  taskEntryId String?
+  documentId  String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  workItem  WorkItem?  @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  taskEntry TaskEntry? @relation(fields: [taskEntryId], references: [id], onDelete: Cascade)
+  document  Document?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("approvals")
+}
+
+// ==================== MALİYET YÖNETİMİ ====================
+
+enum CostType {
+  EXPENSE
+  INCOME
+  INVOICE
+  PAYMENT
+}
+
+model CostRecord {
+  id          String    @id @default(uuid())
+  siteId      String
+  categoryId  String?
+  type        CostType  @default(EXPENSE)
+  amount      Float
+  currency    String    @default("TRY")
+  description String?
+  vendor      String? // Tedarikçi/Taşeron
+  date        DateTime  @default(now())
+  dueDate     DateTime?
+  isPaid      Boolean   @default(false)
+  config      Json? // Esnek ek alanlar
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  site      ConstructionSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  category  Category?        @relation(fields: [categoryId], references: [id])
+  creator   User             @relation(fields: [createdBy], references: [id])
+  documents Document[]
+
+  @@map("cost_records")
+}
+
+// ==================== BİLDİRİM SİSTEMİ ====================
+
+enum NotificationType {
+  COMMENT
+  APPROVAL_REQUEST
+  APPROVAL_GRANTED
+  APPROVAL_REJECTED
+  TASK_UPDATED
+  DOCUMENT_UPLOADED
+  COST_ADDED
+  SYSTEM
+}
+
+model Notification {
+  id              String           @id @default(uuid())
+  userId          String
+  type            NotificationType
+  title           String
+  message         String
+  isRead          Boolean          @default(false)
+  relatedEntityId String?
+  relatedUrl      String?
+  createdAt       DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ==================== CİHAZ TOKEN'LARI (PUSH) ====================
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String // "ios" | "android"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+// ==================== SOHBET (CHAT) ====================
+
+model Conversation {
+  id            String   @id @default(uuid())
+  isGroup       Boolean  @default(false)
+  title         String?
+  avatarUrl     String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastMessageAt DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String
+  role           String   @default("member") // "admin" | "member"
+  joinedAt       DateTime @default(now())
+  lastReadAt     DateTime @default(now())
+  muted          Boolean  @default(false)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String
+  senderId       String
+  type           String    @default("text") // text | image | video | audio | file | system | call
+  body           String
+  attachmentUrl  String?
+  replyToId      String?
+  forwarded      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime?
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderId], references: [id])
+  receipts     MessageReceipt[]
+  reactions    MessageReaction[]
+  hides        MessageHide[]
+  replyTo      Message?         @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]        @relation("MessageReply")
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@map("message_reactions")
+}
+
+model MessageHide {
+  id        String @id @default(uuid())
+  messageId String
+  userId    String
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_hides")
+}
+
+model MessageReceipt {
+  id          String    @id @default(uuid())
+  messageId   String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_receipts")
+}
+
+// ==================== DENETİM KAYDI ====================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  entityType String // Site, Block, WorkItem vs.
+  entityId   String?
+  details    Json? // JSONB - değişiklik detayları
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ==================== PDF ANOTASYONLARı ====================
+
+model PdfAnnotation {
+  id         String   @id @default(uuid())
+  documentId String
+  pageNumber Int      @default(1)
+  xPercent   Float
+  yPercent   Float
+  label      String?
+  color      String?  @default("#ef4444")
+  pinSize    String?  @default("large")
+  unitId     String?
+  createdAt  DateTime @default(now())
+  createdBy  String
+
+  document       Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  creator        User                 @relation(fields: [createdBy], references: [id])
+  media          AnnotationMedia[]
+  checklistMedia UnitChecklistMedia[]
+
+  @@map("pdf_annotations")
+}
+
+model AnnotationMedia {
+  id           String   @id @default(uuid())
+  annotationId String
+  fileName     String
+  fileUrl      String
+  mimeType     String
+  fileSize     Int
+  title        String?
+  description  String?
+  createdAt    DateTime @default(now())
+
+  annotation PdfAnnotation @relation(fields: [annotationId], references: [id], onDelete: Cascade)
+
+  @@map("annotation_media")
+}
+
+// ==================== KAT-SAYFA BAĞLANTILARI ====================
+
+model FloorPageAttachment {
+  id         String   @id @default(uuid())
+  floorId    String
+  documentId String
+  pageNumber Int
+  createdAt  DateTime @default(now())
+
+  floor    Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([floorId, documentId, pageNumber])
+  @@map("floor_page_attachments")
+}
+
+// ==================== DAİRE KONTROL LİSTESİ ====================
+
+model UnitChecklistTemplate {
+  id         String   @id @default(uuid())
+  siteId     String
+  name       String
+  parentId   String?
+  unitId     String?
+  categoryId String?
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site     ConstructionSite        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  parent   UnitChecklistTemplate?  @relation("ChecklistHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children UnitChecklistTemplate[] @relation("ChecklistHierarchy")
+  unit     Unit?                   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  category Category?               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("unit_checklist_templates")
+}
+
+model UnitChecklistMedia {
+  id              String   @id @default(uuid())
+  annotationId    String
+  checklistItemId String
+  fileName        String
+  fileUrl         String
+  mimeType        String
+  fileSize        Int
+  createdAt       DateTime @default(now())
+
+  annotation PdfAnnotation @relation(fields: [annotationId], references: [id], onDelete: Cascade)
+
+  @@map("unit_checklist_media")
+}
+
+// ==================== ÇÖP KUTUSU ====================
+
+model TrashItem {
+  id            String   @id @default(uuid())
+  siteId        String   @map("site_id")
+  blockId       String?  @map("block_id")
+  blockName     String?  @map("block_name")
+  siteName      String?  @map("site_name")
+  itemType      String   @map("item_type") // "annotation" | "construction_media" | "category_document"
+  itemName      String?  @map("item_name") // Dosya adı veya pin etiketi
+  originalData  Json     @map("original_data") // Tüm orijinal veri yedekleme
+  deletedBy     String   @map("deleted_by")
+  deletedByName String   @map("deleted_by_name")
+  deletedAt     DateTime @default(now()) @map("deleted_at")
+
+  // Eski annotation alanları (geriye uyumluluk)
+  documentId String? @map("document_id")
+  pageNumber Int?    @map("page_number")
+  xPercent   Float?  @map("x_percent")
+  yPercent   Float?  @map("y_percent")
+  label      String?
+  color      String?
+  pinSize    String? @map("pin_size")
+  unitId     String? @map("unit_id")
+  unitName   String? @map("unit_name")
+  type       String? // "pin" | "unit_pin" (eski alan, geriye uyumluluk)
+
+  @@map("trash_items")
+}
+
+// ==================== YAPI İNŞAAT TAKİP SİSTEMİ ====================
+
+// Varsayılan şablon (admin tarafından yönetilir)
+model ConstructionDefault {
+  id        String   @id @default("default")
+  template  Json // { floors: [{ name, type, order, works: [{ name, order }] }] }
+  updatedAt DateTime @updatedAt
+
+  @@map("construction_defaults")
+}
+
+// Şantiye + blok bazlı kat/aşama satırları
+model ConstructionFloor {
+  id        String   @id @default(uuid())
+  siteId    String
+  blockId   String?
+  type      String // "KABA_INSAAT" veya "INCE_INSAAT"
+  name      String // Hafriyat, Yalıtım, Temel, Bodrum Kat, Çatı vs.
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site  ConstructionSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  works ConstructionWork[]
+
+  @@map("construction_floors")
+}
+
+// Her kat/aşamanın iş kalemleri (sütunlar)
+model ConstructionWork {
+  id        String   @id @default(uuid())
+  floorId   String
+  name      String // Temel kazı, Kalıp-Hasır, Demir-Kolon vs.
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  floor   ConstructionFloor   @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  entries ConstructionEntry[]
+
+  @@map("construction_works")
+}
+
+// Blok bazlı iş takibi (her hücre = work + block + floor)
+model ConstructionEntry {
+  id        String    @id @default(uuid())
+  workId    String
+  blockId   String
+  floorId   String?
+  startDate DateTime?
+  endDate   DateTime?
+  status    String    @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  work  ConstructionWork         @relation(fields: [workId], references: [id], onDelete: Cascade)
+  media ConstructionEntryMedia[]
+
+  @@unique([workId, blockId, floorId])
+  @@map("construction_entries")
+}
+
+// Hücre medyaları (fotoğraf/video)
+model ConstructionEntryMedia {
+  id          String   @id @default(uuid())
+  entryId     String
+  fileName    String
+  fileUrl     String
+  mimeType    String
+  fileSize    Int
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  entry ConstructionEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
+  @@index([createdAt])
+  @@map("construction_entry_media")
+}
+
+// ==================== SATIŞ MODÜLÜ ====================
+
+enum SalesUnitStatus {
+  AVAILABLE // Boş
+  RESERVED // Rezerve
+  SOLD // Satıldı
+  LAND_OWNER // Arsa Sahibi
+}
+
+// Satış birimi (genelde bir daire). siteId+blockId+name unique
+model SalesUnit {
+  id          String          @id @default(uuid())
+  siteId      String
+  blockId     String
+  daireName   String // Örn: "Daire 1", "1+1 - Kat 3 - No 5"
+  status      SalesUnitStatus @default(AVAILABLE)
+  price       Decimal?        @db.Decimal(14, 2)
+  reservedFor String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  media SalesUnitMedia[]
+
+  @@unique([siteId, blockId, daireName])
+  @@index([siteId])
+  @@map("sales_units")
+}
+
+model SalesUnitMedia {
+  id          String   @id @default(uuid())
+  unitId      String
+  fileName    String
+  fileUrl     String
+  mimeType    String
+  fileSize    Int
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  unit SalesUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@map("sales_unit_media")
+}
+
+// Sadece satış için oluşturulan bağımsız projeler (şantiyeden türemez).
+model SalesProject {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  blocks SalesBlock[]
+
+  @@map("sales_projects")
+}
+
+model SalesBlock {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project SalesProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  daires  SalesDaire[]
+  floors  SalesFloor[]
+
+  @@index([projectId])
+  @@map("sales_blocks")
+}
+
+model SalesDaire {
+  id          String          @id @default(uuid())
+  blockId     String
+  floorId     String?
+  name        String
+  order       Int             @default(0)
+  status      SalesUnitStatus @default(AVAILABLE)
+  price       Decimal?        @db.Decimal(14, 2)
+  reservedFor String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  block SalesBlock        @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  floor SalesFloor?       @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  media SalesDaireMedia[]
+
+  @@index([blockId])
+  @@index([floorId])
+  @@map("sales_daires")
+}
+
+model SalesDaireMedia {
+  id          String   @id @default(uuid())
+  daireId     String
+  fileName    String
+  fileUrl     String
+  mimeType    String
+  fileSize    Int
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  daire SalesDaire @relation(fields: [daireId], references: [id], onDelete: Cascade)
+
+  @@index([daireId])
+  @@map("sales_daire_media")
+}
+
+// Pure-sales projeleri için kat (SalesBlock -> SalesFloor -> SalesDaire).
+// Site-attached satış için Floor modeli kullanılır.
+model SalesFloor {
+  id        String   @id @default(uuid())
+  blockId   String
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  block  SalesBlock   @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  daires SalesDaire[]
+
+  @@index([blockId])
+  @@map("sales_floors")
+}
+
+// Polymorphic alici: targetType "unit" (SalesUnit) veya "daire" (SalesDaire) icin
+model Buyer {
+  id         String   @id @default(uuid())
+  name       String
+  phone      String?
+  email      String?
+  notes      String?
+  targetType String // "unit" | "daire"
+  targetId   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([targetType, targetId])
+  @@map("buyers")
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  buyerId   String
+  amount    Decimal  @db.Decimal(14, 2)
+  paidAt    DateTime @default(now())
+  method    String? // nakit / havale / kredi
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer     Buyer             @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  documents PaymentDocument[]
+
+  @@index([buyerId])
+  @@map("payments")
+}
+
+model PaymentDocument {
+  id        String   @id @default(uuid())
+  paymentId String
+  fileName  String
+  fileUrl   String
+  mimeType  String
+  fileSize  Int
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_documents")
+}
+
+// Polymorphic daire/unit belgesi (sozlesme, tapu vb.).
+// fileName kullanici tarafindan duzenlenebilir gorunen isim.
+model SalesDocument {
+  id         String   @id @default(uuid())
+  targetType String // "unit" | "daire"
+  targetId   String
+  fileName   String
+  fileUrl    String
+  mimeType   String
+  fileSize   Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([targetType, targetId])
+  @@map("sales_documents")
+}
+
+// ==================== PERSONEL TAKİP SİSTEMİ ====================
+
+enum PersonnelWorkDuration {
+  HALF_DAY
+  FULL_DAY
+}
+
+model PersonnelEntry {
+  id               String                @id @default(uuid())
+  siteId           String
+  blockId          String? // null = Peyzaj
+  constructionType String // KABA_INSAAT, INCE_INSAAT, BINA_GENEL, PEYZAJ
+  workName         String // İş adı (tablodaki satır/sütun adı)
+  floorName        String? // Kat/aşama adı (opsiyonel)
+  entryKey         String // Hücreyi tanımlayan bileşik anahtar
+  date             DateTime              @db.Date
+  personnelName    String
+  company          String?
+  workDuration     PersonnelWorkDuration @default(FULL_DAY)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  site ConstructionSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, date])
+  @@index([siteId, blockId, constructionType, entryKey, date])
+  @@map("personnel_entries")
+}
+
+// ==================== STUDYANKA ODA YÖNETİMİ ====================
+
+model StudyankaSync {
+  id       String   @id @default("latest")
+  rooms    Json // Oda durumları (aktif/pasif, kalan süre, müşteri adı vb.)
+  prices   Json // Güncel fiyatlar
+  summary  Json // Günlük özet (toplam oda, gelir vb.)
+  syncedAt DateTime @default(now()) // PLC'den son veri zamanı
+
+  @@map("studyanka_sync")
+}
+
+// ==================== YURTANKA CEBECİ (PDKS) ====================
+
+model YurtAnkaSync {
+  id              String   @id @default("latest")
+  studentsOutside Json     @default("[]") // Şu an dışarıda olan öğrenciler
+  personnelDaily  Json     @default("[]") // HAFTALIK_PERSONEL günlük giriş/çıkış
+  weeks           Json     @default("[]") // Dinamik hafta listesi
+  weeklyData      Json     @default("{}") // weekKey -> haftalık özet
+  meta            Json     @default("{}") // toplam, son güncellenme vs.
+  syncedAt        DateTime @default(now())
+
+  @@map("yurtanka_sync")
+}
+
+// ==================== DEPO YÖNETİMİ ====================
+
+model Warehouse {
+  id        String   @id @default(uuid())
+  name      String   @unique // Atölye, Serdivan Depo, Konteyner
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  materials WarehouseMaterial[]
+
+  @@map("warehouses")
+}
+
+model Material {
+  id        String   @id @default(uuid())
+  name      String // Masa, Klozet, Tuğla vs.
+  unit      String // adet, torba, kg, metreküp, metre, paket vs.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  warehouses WarehouseMaterial[]
+
+  @@map("materials")
+}
+
+model WarehouseMaterial {
+  id          String   @id @default(uuid())
+  warehouseId String
+  materialId  String
+  quantity    Float    @default(0) // Mevcut stok miktarı
+  minStock    Float? // Minimum stok uyarı seviyesi
+  notes       String? // Ek notlar
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse     Warehouse                @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  material      Material                 @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  irsaliyeItems IrsaliyeItem[]
+  media         WarehouseMaterialMedia[]
+
+  @@unique([warehouseId, materialId])
+  @@index([warehouseId])
+  @@map("warehouse_materials")
+}
+
+model WarehouseMaterialMedia {
+  id                  String   @id @default(uuid())
+  warehouseMaterialId String
+  url                 String
+  mimeType            String
+  fileName            String?
+  createdAt           DateTime @default(now())
+
+  warehouseMaterial WarehouseMaterial @relation(fields: [warehouseMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([warehouseMaterialId])
+  @@map("warehouse_material_media")
+}
+
+model Irsaliye {
+  id          String       @id @default(uuid())
+  warehouseId String
+  irsaliyeNo  String // İrsaliye numarası
+  type        IrsaliyeType // GIRIS veya CIKIS
+  supplier    String? // Tedarikçi/Firma adı
+  description String? // Açıklama
+  date        DateTime     @db.Date
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  items IrsaliyeItem[]
+
+  @@index([warehouseId])
+  @@map("irsaliyeler")
+}
+
+enum IrsaliyeType {
+  GIRIS // Depoya giriş
+  CIKIS // Depodan çıkış
+}
+
+model IrsaliyeItem {
+  id                  String @id @default(uuid())
+  irsaliyeId          String
+  warehouseMaterialId String
+  quantity            Float // Miktar
+
+  irsaliye          Irsaliye          @relation(fields: [irsaliyeId], references: [id], onDelete: Cascade)
+  warehouseMaterial WarehouseMaterial @relation(fields: [warehouseMaterialId], references: [id], onDelete: Cascade)
+
+  @@map("irsaliye_items")
+}
+
+// ==================== TESLİMAT YÖNETİMİ ====================
+
+model Teslimat {
+  id         String   @id @default(uuid())
+  irsaliyeNo String // İrsaliye numarası
+  supplier   String? // Tedarikçi/Firma adı
+  siteId     String? // Hangi şantiyeye (opsiyonel)
+  receivedBy String // Teslim alan kişi
+  date       DateTime @db.Date
+  notes      String? // Açıklama
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site  ConstructionSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  items TeslimatItem[]
+
+  @@index([siteId])
+  @@index([date])
+  @@map("teslimatlar")
+}
+
+model TeslimatItem {
+  id           String @id @default(uuid())
+  teslimatId   String
+  materialName String // Malzeme cinsi (serbest metin)
+  unit         String // Birim (adet, kg, torba, m³ vs.)
+  quantity     Float // Miktar
+  unitPrice    Float // Birim fiyat (₺)
+  totalPrice   Float // Toplam fiyat (otomatik hesaplanır) - net
+  taxRate      Float  @default(0) // KDV % (0, 1, 10, 20)
+
+  teslimat Teslimat            @relation(fields: [teslimatId], references: [id], onDelete: Cascade)
+  media    TeslimatItemMedia[]
+
+  @@map("teslimat_items")
+}
+
+model TeslimatItemMedia {
+  id             String   @id @default(uuid())
+  teslimatItemId String   @map("teslimat_item_id")
+  url            String
+  mimeType       String   @map("mime_type")
+  fileName       String?  @map("file_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  teslimatItem TeslimatItem @relation(fields: [teslimatItemId], references: [id], onDelete: Cascade)
+
+  @@index([teslimatItemId])
+  @@map("teslimat_item_media")
+}
+
+// ==================== PERSONEL KAYIT YÖNETİMİ ====================
+
+model SitePersonnel {
+  id        String   @id @default(uuid())
+  siteId    String
+  firstName String
+  lastName  String
+  company   String? // Firma/Şirket
+  tcNo      String? // TC Kimlik No
+  phone     String?
+  position  String? // Unvan/Pozisyon
+  notes     String?
+  sgkDocUrl String? // (legacy) en son yüklenen belgenin yolu — uyumluluk için
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site      ConstructionSite    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  documents PersonnelDocument[]
+
+  @@index([siteId])
+  @@index([siteId, firstName, lastName])
+  @@map("site_personnel")
+}
+
+model PersonnelDocument {
+  id          String   @id @default(uuid())
+  personnelId String
+  url         String
+  fileName    String?
+  mimeType    String?
+  createdAt   DateTime @default(now())
+
+  personnel SitePersonnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+
+  @@index([personnelId])
+  @@map("personnel_documents")
+}
+
+// ==================== ARIZA TAKİP ====================
+
+enum AriszaStatus {
+  OPEN
+  RESOLVED
+}
+
+enum AriszaKind {
+  GENERIC
+  SANTIYE
+}
+
+model Ariza {
+  id                String       @id @default(uuid())
+  kind              AriszaKind   @default(GENERIC)
+  siteId            String?
+  customSiteName    String?
+  blockId           String?
+  floorId           String?
+  unitId            String?
+  isPeyzaj          Boolean      @default(false)
+  description       String
+  startDate         DateTime     @db.Date
+  endDate           DateTime?    @db.Date
+  assignedPersonnel String?
+  status            AriszaStatus @default(OPEN)
+  createdById       String?
+  createdByName     String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  site  ConstructionSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  block Block?            @relation(fields: [blockId], references: [id], onDelete: SetNull)
+  floor Floor?            @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  unit  Unit?             @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  media AriszaMedia[]
+
+  @@index([siteId])
+  @@index([status])
+  @@index([kind])
+  @@map("arizalar")
+}
+
+model AriszaMedia {
+  id        String   @id @default(uuid())
+  ariszaId  String
+  url       String
+  mimeType  String
+  fileName  String?
+  createdAt DateTime @default(now())
+
+  arisza Ariza @relation(fields: [ariszaId], references: [id], onDelete: Cascade)
+
+  @@index([ariszaId])
+  @@map("ariza_media")
+}
+
+model PromoVideo {
+  id         String   @id @default(uuid())
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  videoUrl   String?  @map("video_url")
+  embedUrl   String?  @map("embed_url")
+  mimeType   String?  @map("mime_type")
+  fileSize   Int?     @map("file_size")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([targetType, targetId])
+  @@map("promo_videos")
+}
+
+// ==================== ADISYO (StudyAnka POS) ====================
+
+// Adisyo'dan çekilen tamamlanan siparişlerin yerel aynası (mirror).
+// /CompletedOrders ucu 40 sn'de 1 çağrılabildiği için veriyi burada tutar,
+// panel (stats) hep buradan okur. id = Adisyo sipariş ID'si.
+model AdisyoOrder {
+  id          String   @id // Adisyo sipariş ID'si (string olarak saklanır)
+  orderDate   DateTime // Siparişin Adisyo'daki tarih/saati (insertDate, yerel TR)
+  totalAmount Float    @default(0) // Sipariş toplamı (ciro)
+  orderType   String? // Masa Siparişi / TakeAway / Retail vb.
+  status      String? // Sipariş durumu (Kapandı, İptal vb.)
+  isCancelled Boolean  @default(false) // İptal edilmiş mi
+  waiterName  String? // Garson adı
+  payload     Json // Ham sipariş yanıtı (products[], payments[] dahil)
+  syncedAt    DateTime @default(now()) // Bu kaydın en son senkron zamanı
+
+  @@index([orderDate])
+  @@map("adisyo_orders")
+}
+
+// Adisyo senkron meta bilgisi (son sync zamanı vb.) — tek satır id="latest".
+model AdisyoSyncMeta {
+  id            String   @id @default("latest")
+  lastSyncAt    DateTime @default(now()) // En son başarılı incremental/backfill zamanı
+  lastBackfill  DateTime? // En son backfill zamanı
+  updatedAt     DateTime @updatedAt
+
+  @@map("adisyo_sync_meta")
+}
+

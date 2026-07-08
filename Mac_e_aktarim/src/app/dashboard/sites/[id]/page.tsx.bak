@@ -1,0 +1,2544 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useSidebar } from "../../layout";
+import {
+  ArrowLeft,
+  Building2,
+  FileText,
+  ChevronRight,
+  Upload,
+  Download,
+  File,
+  X,
+  Trash2,
+  Edit3,
+  Plus,
+  Layers,
+  CheckCircle,
+  Hammer,
+  Camera,
+  Image as ImageIcon,
+  Video,
+  Eye,
+  ChevronLeft as ArrowLeftIcon,
+  ChevronRight as ArrowRightIcon,
+  FolderOpen,
+} from "lucide-react";
+
+const PdfViewer = lazy(() => import("@/components/PdfViewer"));
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  parentCategoryId: string | null;
+  order: number;
+  color: string;
+  imageUrl: string;
+  config: any;
+  subCategories: Category[];
+  workItems: WorkItem[];
+}
+
+interface WorkItem {
+  id: string;
+  name: string;
+  progress: number;
+  status: string;
+  startDate: string;
+  endDate: string;
+  imageUrl: string;
+  taskEntries: TaskEntry[];
+}
+
+interface TaskEntry {
+  id: string;
+  name: string;
+  progress: number;
+  status: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface Block {
+  id: string;
+  name: string;
+  order: number;
+  floors: Floor[];
+}
+
+interface Floor {
+  id: string;
+  name: string;
+  order: number;
+  units: Unit[];
+}
+
+interface Unit {
+  id: string;
+  name: string;
+  order: number;
+}
+
+interface CategoryDocument {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  mimeType: string;
+  createdAt: string;
+  uploader: { firstName: string; lastName: string };
+}
+
+interface FloorAttachment {
+  id: string;
+  floorId: string;
+  documentId: string;
+  pageNumber: number;
+  document: { id: string; fileName: string; fileUrl: string };
+}
+
+interface Site {
+  id: string;
+  name: string;
+  description: string;
+  address: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  blocks: Block[];
+  categories: Category[];
+  _count: { costRecords: number };
+}
+
+export default function SiteDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { setCollapsed } = useSidebar();
+  const [site, setSite] = useState<Site | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+  const [breadcrumb, setBreadcrumb] = useState<{ name: string; category?: Category }[]>([]);
+  const [categoryDocuments, setCategoryDocuments] = useState<CategoryDocument[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadingGroup, setUploadingGroup] = useState<string | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<CategoryDocument | null>(null);
+  const [groupDocs, setGroupDocs] = useState<Record<string, CategoryDocument[]>>({});
+  const [activeBlock, setActiveBlock] = useState<Block | null>(null);
+
+  // Dosya adı düzenleme / yükleme popup state'leri
+  const [pendingFile, setPendingFile] = useState<{ file: File; groupKey?: string } | null>(null);
+  const [pendingFileName, setPendingFileName] = useState("");
+  const [renamingDoc, setRenamingDoc] = useState<{ doc: CategoryDocument; isGroup: boolean } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deletingDoc, setDeletingDoc] = useState<{ doc: CategoryDocument; isGroup: boolean } | null>(null);
+  const [floorAttachments, setFloorAttachments] = useState<Record<string, FloorAttachment[]>>({});
+  const [floorAttachDoc, setFloorAttachDoc] = useState<CategoryDocument | null>(null);
+  const [attachingFloor, setAttachingFloor] = useState<Floor | null>(null);
+  const [attachPage, setAttachPage] = useState("");
+  const [viewingDocFloorLabels, setViewingDocFloorLabels] = useState<Record<number, string>>({});
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [viewingDocIsUygulama, setViewingDocIsUygulama] = useState(false);
+  const [checklistTemplates, setChecklistTemplates] = useState<{ id: string; name: string; children: { id: string; name: string }[] }[]>([]);
+
+  // İnşaat takip state'leri
+  const [activeConstructionType, setActiveConstructionType] = useState<string | null>(null);
+  const [constructionFloors, setConstructionFloors] = useState<any[]>([]);
+  const [constructionEntries, setConstructionEntries] = useState<Record<string, { id: string; status: string; mediaCount: number }>>({});
+  const [constructionLoading, setConstructionLoading] = useState(false);
+  const [constructionMediaPopup, setConstructionMediaPopup] = useState<{ workId: string; workName: string; floorName: string; floorId?: string } | null>(null);
+  const [constructionMedias, setConstructionMedias] = useState<any[]>([]);
+  const [constructionMediaLoading, setConstructionMediaLoading] = useState(false);
+  const [constructionMediaUploading, setConstructionMediaUploading] = useState(false);
+  const [constructionMediaMode, setConstructionMediaMode] = useState<"choice" | "upload" | "view">("upload");
+  const [constructionViewIndex, setConstructionViewIndex] = useState(0);
+
+  // İnce İnşaat state'leri
+  const [inceViewMode, setInceViewMode] = useState<"select" | "daire_bazinda" | "is_bazinda" | null>(null);
+  const [selectedInceDaire, setSelectedInceDaire] = useState<any>(null);
+  const [selectedInceWork, setSelectedInceWork] = useState<any>(null);
+  // İnce İnşaat entries: key = "workId:daireId" → { mediaCount }
+  const [inceEntries, setInceEntries] = useState<Record<string, { id: string; mediaCount: number }>>({});
+  // İnce İnşaat daireleri (API'den gelir)
+  const [inceDaires, setInceDaires] = useState<{ id: string; name: string }[]>([]);
+  // Daireye özel iş kalemi override'ları
+  const [inceUnitOverrides, setInceUnitOverrides] = useState<Record<string, { added: string[]; removed: string[] }>>({});
+
+  // Diğer bloklar state'leri
+  const [showOtherBlocks, setShowOtherBlocks] = useState(false);
+  const [otherBlocksData, setOtherBlocksData] = useState<{ blockId: string; blockName: string; floors: any[]; entries: Record<string, { id: string; status: string; mediaCount: number }>; daires?: { id: string; name: string }[]; inceEntries?: Record<string, { id: string; mediaCount: number }> }[]>([]);
+  const [otherBlocksLoading, setOtherBlocksLoading] = useState(false);
+
+  // Kamera state'leri
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraType, setCameraType] = useState<"photo" | "video">("photo");
+  const [isRecording, setIsRecording] = useState(false);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Medya yükleme ve silme state'leri
+  const [constructionPendingFile, setConstructionPendingFile] = useState<Blob | null>(null);
+  const [constructionPendingFileName, setConstructionPendingFileName] = useState("");
+  const [constructionMediaTitle, setConstructionMediaTitle] = useState("");
+  const [constructionMediaDesc, setConstructionMediaDesc] = useState("");
+  const [constructionDeleteConfirm, setConstructionDeleteConfirm] = useState<{ mediaId: string; fileName: string; fromGallery?: boolean } | null>(null);
+  const constructionPendingUrl = useMemo(() => constructionPendingFile ? URL.createObjectURL(constructionPendingFile) : null, [constructionPendingFile]);
+  useEffect(() => { return () => { if (constructionPendingUrl) URL.revokeObjectURL(constructionPendingUrl); }; }, [constructionPendingUrl]);
+  const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
+  const [editMediaTitle, setEditMediaTitle] = useState("");
+  const [editMediaDesc, setEditMediaDesc] = useState("");
+
+  useEffect(() => {
+    fetchSite();
+  }, [params.id]);
+
+  // Sidebar auto-collapse when in construction mode
+  useEffect(() => {
+    if (activeConstructionType) {
+      setCollapsed(true);
+    } else {
+      setCollapsed(false);
+    }
+  }, [activeConstructionType, setCollapsed]);
+
+  useEffect(() => {
+    if (viewingDoc && (viewingDoc.fileType === "PDF" || viewingDoc.mimeType === "application/pdf")) {
+      fetchFloorLabelsForDoc(viewingDoc.id);
+    } else {
+      setViewingDocFloorLabels({});
+    }
+  }, [viewingDoc]);
+
+  // Uygulama PDF'i için sayfa-daire listesi
+  const pageFloorUnits = (() => {
+    if (!viewingDocIsUygulama || !activeBlock) return {};
+    const result: Record<number, { id: string; name: string }[]> = {};
+    for (const [pageStr, floorName] of Object.entries(viewingDocFloorLabels)) {
+      const page = Number(pageStr);
+      const floor = activeBlock.floors.find((f) => f.name === floorName);
+      if (floor) result[page] = floor.units.map((u) => ({ id: u.id, name: u.name }));
+    }
+    return result;
+  })();
+
+  const fetchSite = async () => {
+    try {
+      const res = await fetch(`/api/sites/${params.id}`);
+      if (!res.ok) {
+        router.push("/dashboard/sites");
+        return;
+      }
+      const data = await res.json();
+      setSite(data.site);
+      // Fetch checklist templates
+      try {
+        const clRes = await fetch(`/api/sites/${params.id}/checklist`);
+        if (clRes.ok) {
+          const clData = await clRes.json();
+          setChecklistTemplates(clData.templates || []);
+        }
+      } catch {}
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateToCategory = (cat: Category) => {
+    setActiveCategory(cat);
+    const newBreadcrumb = [...breadcrumb, { name: cat.name, category: cat }];
+    setBreadcrumb(newBreadcrumb);
+    setCategoryDocuments([]);
+    setGroupDocs({});
+    fetchCategoryDocuments(cat.id);
+    // Ruhsatlandırma kontrolü
+    if (newBreadcrumb.some((b) => b.name.toLowerCase().includes("ruhsat"))) {
+      fetchGroupDocs(cat.id);
+    }
+  };
+
+  const navigateBack = () => {
+    if (breadcrumb.length > 1) {
+      const newBreadcrumb = breadcrumb.slice(0, -1);
+      setBreadcrumb(newBreadcrumb);
+      const prevCat = newBreadcrumb[newBreadcrumb.length - 1]?.category || null;
+      setActiveCategory(prevCat);
+      if (prevCat) fetchCategoryDocuments(prevCat.id);
+      else setCategoryDocuments([]);
+    } else if (activeCategory) {
+      setActiveCategory(null);
+      setBreadcrumb([]);
+      setCategoryDocuments([]);
+      setGroupDocs({});
+    } else if (activeConstructionType === "INCE_INSAAT") {
+      // İnce İnşaat çok adımlı geri navigasyonu
+      if (selectedInceDaire) {
+        setSelectedInceDaire(null);
+      } else if (selectedInceWork) {
+        setSelectedInceWork(null);
+      } else if (inceViewMode && inceViewMode !== "select") {
+        setInceViewMode("select");
+        setShowOtherBlocks(false);
+        setOtherBlocksData([]);
+      } else {
+        setActiveConstructionType(null);
+        setInceViewMode(null);
+        setConstructionFloors([]);
+        setConstructionEntries({});
+        setInceEntries({});
+        setInceDaires([]);
+        setShowOtherBlocks(false);
+        setOtherBlocksData([]);
+      }
+    } else if (activeConstructionType) {
+      setActiveConstructionType(null);
+      setConstructionFloors([]);
+      setConstructionEntries({});
+      setShowOtherBlocks(false);
+      setOtherBlocksData([]);
+    } else if (activeBlock) {
+      setActiveBlock(null);
+    }
+  };
+
+  const goHome = () => {
+    setActiveCategory(null);
+    setBreadcrumb([]);
+    setCategoryDocuments([]);
+    setGroupDocs({});
+    setActiveBlock(null);
+    setActiveConstructionType(null);
+    setConstructionFloors([]);
+    setConstructionEntries({});
+    setInceViewMode(null);
+    setSelectedInceDaire(null);
+    setSelectedInceWork(null);
+    setInceEntries({});
+    setInceDaires([]);
+    setShowOtherBlocks(false);
+    setOtherBlocksData([]);
+  };
+
+  const navigateToBreadcrumb = (index: number) => {
+    if (index < 0) {
+      setActiveCategory(null);
+      setBreadcrumb([]);
+      setCategoryDocuments([]);
+    } else {
+      const newBreadcrumb = breadcrumb.slice(0, index + 1);
+      setBreadcrumb(newBreadcrumb);
+      const cat = newBreadcrumb[newBreadcrumb.length - 1]?.category || null;
+      setActiveCategory(cat);
+      if (cat) fetchCategoryDocuments(cat.id);
+      else setCategoryDocuments([]);
+    }
+  };
+
+  const fetchCategoryDocuments = async (categoryId: string) => {
+    try {
+      const blockParam = activeBlock ? `?blockId=${activeBlock.id}` : '';
+      const res = await fetch(`/api/categories/${categoryId}/documents${blockParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCategoryDocuments(data.documents);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, groupKey?: string) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+    setPendingFileName(nameWithoutExt);
+    setPendingFile({ file, groupKey });
+    e.target.value = "";
+  };
+
+  const getFileExt = (name: string) => {
+    const match = name.match(/\.[^/.]+$/);
+    return match ? match[0] : "";
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!pendingFile || !activeCategory) return;
+    const { file, groupKey } = pendingFile;
+    const ext = getFileExt(file.name);
+    const finalName = pendingFileName.trim() + ext;
+
+    if (groupKey) setUploadingGroup(groupKey);
+    else setUploading(true);
+
+    setPendingFile(null);
+    setUploadProgress(0);
+
+    try {
+      const renamedFile = new Blob([file], { type: file.type });
+      const formData = new FormData();
+      formData.append("file", renamedFile, finalName);
+      if (groupKey) formData.append("group", groupKey);
+      if (activeBlock) formData.append("blockId", activeBlock.id);
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/api/categories/${activeCategory!.id}/documents`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (groupKey) fetchGroupDocs(activeCategory!.id);
+            else fetchCategoryDocuments(activeCategory!.id);
+            setUploadSuccess(finalName);
+            setTimeout(() => setUploadSuccess(null), 2500);
+            resolve();
+          } else {
+            try { const d = JSON.parse(xhr.responseText); alert(d.error || "Dosya yüklenemedi"); } catch { alert("Dosya yüklenemedi"); }
+            reject();
+          }
+        };
+        xhr.onerror = () => { alert("Dosya yüklenirken hata oluştu"); reject(); };
+        xhr.send(formData);
+      });
+    } catch { /* handled */ } finally {
+      setUploadProgress(null);
+      if (groupKey) setUploadingGroup(null);
+      else setUploading(false);
+    }
+  };
+
+  const handleRenameDoc = async () => {
+    if (!renamingDoc || !activeCategory) return;
+    const { doc, isGroup } = renamingDoc;
+    const ext = getFileExt(doc.fileName);
+    const newName = renameValue.trim() + ext;
+    if (!newName || newName === doc.fileName) { setRenamingDoc(null); return; }
+
+    try {
+      const res = await fetch(`/api/categories/${activeCategory.id}/documents`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: doc.id, fileName: newName }),
+      });
+      if (res.ok) {
+        if (isGroup) fetchGroupDocs(activeCategory.id);
+        else fetchCategoryDocuments(activeCategory.id);
+      } else {
+        const data = await res.json();
+        alert(data.error || "İsim değiştirilemedi");
+      }
+    } catch {
+      alert("İsim değiştirilirken hata oluştu");
+    } finally {
+      setRenamingDoc(null);
+    }
+  };
+
+  const handleDeleteDocument = (doc: CategoryDocument) => {
+    setDeletingDoc({ doc, isGroup: false });
+  };
+
+  const handleDeleteGroupDoc = (doc: CategoryDocument) => {
+    setDeletingDoc({ doc, isGroup: true });
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingDoc || !activeCategory) return;
+    const { doc, isGroup } = deletingDoc;
+    setDeletingDoc(null);
+    try {
+      const res = await fetch(`/api/categories/${activeCategory.id}/documents`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: doc.id }),
+      });
+      if (res.ok) {
+        if (isGroup) fetchGroupDocs(activeCategory.id);
+        else fetchCategoryDocuments(activeCategory.id);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Dosya silinemedi");
+      }
+    } catch {
+      alert("Dosya silinirken hata oluştu");
+    }
+  };
+
+  // Ruhsatlandırma proje grupları
+  const RUHSAT_GROUPS = [
+    { key: "mimari", label: "Mimari Proje", buttonLabel: "Mimari Proje Ekle" },
+    { key: "statik", label: "Statik Proje", buttonLabel: "Statik Proje Ekle" },
+    { key: "mekanik", label: "Mekanik Proje", buttonLabel: "Mekanik Proje Ekle" },
+    { key: "zemin", label: "Zemin Etüdü", buttonLabel: "Zemin Etüdü Ekle" },
+    { key: "uygulama", label: "Uygulama Projesi", buttonLabel: "Uygulama Projesi Ekle" },
+    { key: "elektrik", label: "Elektrik Projesi", buttonLabel: "Elektrik Projesi Ekle" },
+    { key: "ruhsat", label: "Yapı Ruhsatı", buttonLabel: "Yapı Ruhsatı Ekle" },
+    { key: "diger", label: "Diğer Belgeler", buttonLabel: "Belge Ekle" },
+  ];
+
+  const isRuhsatlandirma = breadcrumb.some((b) => b.name.toLowerCase().includes("ruhsat"));
+
+  const fetchGroupDocs = async (categoryId: string) => {
+    const result: Record<string, CategoryDocument[]> = {};
+    const blockParam = activeBlock ? `&blockId=${activeBlock.id}` : '';
+    await Promise.all(
+      RUHSAT_GROUPS.map(async (g) => {
+        try {
+          const res = await fetch(`/api/categories/${categoryId}/documents?group=${g.key}${blockParam}`);
+          if (res.ok) {
+            const data = await res.json();
+            result[g.key] = data.documents;
+          } else {
+            result[g.key] = [];
+          }
+        } catch {
+          result[g.key] = [];
+        }
+      })
+    );
+    setGroupDocs(result);
+  };
+
+  const fetchFloorAttachments = async (docId: string) => {
+    try {
+      const res = await fetch(`/api/floor-attachments?documentId=${docId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFloorAttachments(data.attachments || {});
+      }
+    } catch {
+      setFloorAttachments({});
+    }
+  };
+
+  const fetchFloorLabelsForDoc = async (docId: string) => {
+    try {
+      const res = await fetch(`/api/floor-attachments?documentId=${docId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setViewingDocFloorLabels(data.pageLabels || {});
+      }
+    } catch {
+      setViewingDocFloorLabels({});
+    }
+  };
+
+  const openFloorAttachPopup = (doc: CategoryDocument) => {
+    setFloorAttachDoc(doc);
+    fetchFloorAttachments(doc.id);
+  };
+
+  // İnşaat takip fonksiyonları
+  const fetchConstructionData = async (blockId: string, type: string) => {
+    setConstructionLoading(true);
+    try {
+      const url = blockId
+        ? `/api/construction?siteId=${params.id}&blockId=${blockId}&type=${type}`
+        : `/api/construction?siteId=${params.id}&type=${type}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setConstructionFloors(data.floors || []);
+
+        if (type === "INCE_INSAAT") {
+          // İnce İnşaat: daireler ve allEntries API'den ayrı gelir
+          setInceDaires(data.daires || []);
+          setInceUnitOverrides(data.unitOverrides || {});
+          const ince: Record<string, { id: string; mediaCount: number }> = {};
+          for (const [key, count] of Object.entries(data.allEntries || {})) {
+            ince[key] = { id: key, mediaCount: count as number };
+          }
+          setInceEntries(ince);
+        } else {
+          // Kaba İnşaat / Peyzaj: entries nested floors.works.entries
+          const entries: Record<string, { id: string; status: string; mediaCount: number }> = {};
+          for (const floor of (data.floors || [])) {
+            for (const work of (floor.works || [])) {
+              if (work.entries && work.entries.length > 0) {
+                for (const entry of work.entries) {
+                  entries[work.id] = {
+                    id: entry.id,
+                    status: entry.status || "IN_PROGRESS",
+                    mediaCount: entry.media?.length || 0,
+                  };
+                }
+              }
+            }
+          }
+          setConstructionEntries(entries);
+        }
+      }
+    } catch (err) {
+      console.error("Construction data fetch error:", err);
+    } finally {
+      setConstructionLoading(false);
+    }
+  };
+
+  // Diğer blokların verilerini getir (read-only karşılaştırma)
+  const fetchOtherBlocksData = async (currentBlockId: string, type: string) => {
+    if (!site) return;
+    setOtherBlocksLoading(true);
+    try {
+      const otherBlocks = site.blocks.filter(b => b.id !== currentBlockId);
+      const results: typeof otherBlocksData = [];
+      for (const block of otherBlocks) {
+        const url = `/api/construction?siteId=${params.id}&blockId=${block.id}&type=${type}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (type === "INCE_INSAAT") {
+            const ince: Record<string, { id: string; mediaCount: number }> = {};
+            for (const [key, count] of Object.entries(data.allEntries || {})) {
+              ince[key] = { id: key, mediaCount: count as number };
+            }
+            results.push({ blockId: block.id, blockName: block.name, floors: data.floors || [], entries: {}, daires: data.daires || [], inceEntries: ince });
+          } else {
+            const entries: Record<string, { id: string; status: string; mediaCount: number }> = {};
+            for (const floor of (data.floors || [])) {
+              for (const work of (floor.works || [])) {
+                if (work.entries && work.entries.length > 0) {
+                  for (const entry of work.entries) {
+                    entries[work.id] = { id: entry.id, status: entry.status || "IN_PROGRESS", mediaCount: entry.media?.length || 0 };
+                  }
+                }
+              }
+            }
+            results.push({ blockId: block.id, blockName: block.name, floors: data.floors || [], entries });
+          }
+        }
+      }
+      setOtherBlocksData(results);
+    } catch (err) {
+      console.error("Other blocks fetch error:", err);
+    } finally {
+      setOtherBlocksLoading(false);
+    }
+  };
+
+  // Peyzaj için siteId'yi blockId olarak kullan
+  const effectiveBlockId = activeBlock?.id || (activeConstructionType === "PEYZAJ" ? params.id as string : null);
+
+  const openConstructionMedia = async (workId: string, workName: string, floorName: string, floorId?: string) => {
+    if (!effectiveBlockId) return;
+    // Reset mode immediately so no stale "view" state flashes before fetch completes
+    setConstructionMediaMode("upload");
+    setConstructionMedias([]);
+    setConstructionMediaPopup({ workId, workName, floorName, floorId });
+    setConstructionMediaLoading(true);
+    try {
+      const floorParam = floorId ? `&floorId=${floorId}` : "";
+      const res = await fetch(`/api/construction/${workId}?blockId=${effectiveBlockId}${floorParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        setConstructionMedias(data.media || []);
+        setConstructionMediaMode("upload");
+      } else {
+        setConstructionMedias([]);
+        setConstructionMediaMode("upload");
+      }
+    } catch {
+      setConstructionMedias([]);
+      setConstructionMediaMode("upload");
+    } finally {
+      setConstructionMediaLoading(false);
+    }
+  };
+
+  // Kamera fonksiyonları
+  const startCamera = useCallback(async (type: "photo" | "video") => {
+    setCameraType(type);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: type === "video",
+      });
+      cameraStreamRef.current = stream;
+      setCameraActive(true);
+      setTimeout(() => {
+        if (cameraVideoRef.current) {
+          cameraVideoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch {
+      // Kamera erişimi başarısız - dosya seçiciye düş
+      if (type === "photo") photoInputRef.current?.click();
+      else videoInputRef.current?.click();
+    }
+  }, []);
+
+  const closeCamera = useCallback(() => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(t => t.stop());
+      cameraStreamRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    recordedChunksRef.current = [];
+    setIsRecording(false);
+    setCameraActive(false);
+  }, []);
+
+  const capturePhoto = useCallback(async () => {
+    if (!cameraVideoRef.current || !constructionMediaPopup || !effectiveBlockId) return;
+    const video = cameraVideoRef.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      closeCamera();
+      setConstructionPendingFile(blob);
+      setConstructionPendingFileName(`foto_${Date.now()}.jpg`);
+      setConstructionMediaTitle("");
+      setConstructionMediaDesc("");
+    }, "image/jpeg", 0.9);
+  }, [constructionMediaPopup, effectiveBlockId, closeCamera]);
+
+  const startVideoRecording = useCallback(() => {
+    if (!cameraStreamRef.current) return;
+    recordedChunksRef.current = [];
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9"
+      : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "video/mp4";
+    const recorder = new MediaRecorder(cameraStreamRef.current, { mimeType });
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      closeCamera();
+      if (!constructionMediaPopup || !effectiveBlockId) return;
+      const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+      setConstructionPendingFile(blob);
+      setConstructionPendingFileName(`video_${Date.now()}.${ext}`);
+      setConstructionMediaTitle("");
+      setConstructionMediaDesc("");
+    };
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    setIsRecording(true);
+  }, [constructionMediaPopup, effectiveBlockId, closeCamera]);
+
+  const stopVideoRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  }, []);
+
+  const handleConstructionMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || !constructionMediaPopup || !effectiveBlockId) return;
+    const f = e.target.files[0];
+    setConstructionPendingFile(f);
+    setConstructionPendingFileName(f.name);
+    setConstructionMediaTitle("");
+    setConstructionMediaDesc("");
+    e.target.value = "";
+  };
+
+  const confirmConstructionMediaUpload = async () => {
+    if (!constructionPendingFile || !constructionMediaPopup || !effectiveBlockId) return;
+    setConstructionMediaUploading(true);
+    const formData = new FormData();
+    formData.append("file", constructionPendingFile, constructionPendingFileName || `media_${Date.now()}`);
+    formData.append("blockId", effectiveBlockId);
+    if (constructionMediaPopup.floorId) formData.append("floorId", constructionMediaPopup.floorId);
+    if (constructionMediaTitle.trim()) formData.append("title", constructionMediaTitle.trim());
+    if (constructionMediaDesc.trim()) formData.append("description", constructionMediaDesc.trim());
+    try {
+      const res = await fetch(`/api/construction/${constructionMediaPopup.workId}`, { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        setConstructionMedias(prev => [...prev, data.media]);
+        if (constructionMediaPopup!.floorId) {
+          const inceKey = `${constructionMediaPopup!.workId}:${constructionMediaPopup!.floorId}`;
+          setInceEntries(prev => ({
+            ...prev,
+            [inceKey]: {
+              id: data.media?.entryId || prev[inceKey]?.id || "",
+              mediaCount: (prev[inceKey]?.mediaCount || 0) + 1,
+            },
+          }));
+        } else {
+          setConstructionEntries(prev => ({
+            ...prev,
+            [constructionMediaPopup!.workId]: {
+              id: data.media?.entryId || prev[constructionMediaPopup!.workId]?.id || "",
+              status: "IN_PROGRESS",
+              mediaCount: (prev[constructionMediaPopup!.workId]?.mediaCount || 0) + 1,
+            },
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Construction media upload error:", err);
+    } finally {
+      setConstructionMediaUploading(false);
+      setConstructionPendingFile(null);
+      setConstructionPendingFileName("");
+      setConstructionMediaTitle("");
+      setConstructionMediaDesc("");
+    }
+  };
+
+  const handleDeleteConstructionMedia = async (mediaId: string) => {
+    if (!constructionMediaPopup) return;
+    try {
+      const res = await fetch(`/api/construction/${constructionMediaPopup.workId}?mediaId=${mediaId}`, { method: "DELETE" });
+      if (res.ok) {
+        setConstructionMedias(prev => prev.filter(m => m.id !== mediaId));
+        if (constructionMediaPopup!.floorId) {
+          const inceKey = `${constructionMediaPopup!.workId}:${constructionMediaPopup!.floorId}`;
+          setInceEntries(prev => {
+            const current = prev[inceKey];
+            if (current && current.mediaCount > 0) {
+              return { ...prev, [inceKey]: { ...current, mediaCount: current.mediaCount - 1 } };
+            }
+            return prev;
+          });
+        } else {
+          setConstructionEntries(prev => {
+            const current = prev[constructionMediaPopup!.workId];
+            if (current && current.mediaCount > 0) {
+              return { ...prev, [constructionMediaPopup!.workId]: { ...current, mediaCount: current.mediaCount - 1 } };
+            }
+            return prev;
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Construction media delete error:", err);
+    }
+  };
+
+  const handleUpdateConstructionMedia = async (mediaId: string, title: string, description: string) => {
+    if (!constructionMediaPopup) return;
+    try {
+      const res = await fetch(`/api/construction/${constructionMediaPopup.workId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId, title: title.trim() || null, description: description.trim() || null }),
+      });
+      if (res.ok) {
+        setConstructionMedias(prev => prev.map(m => m.id === mediaId ? { ...m, title: title.trim() || null, description: description.trim() || null } : m));
+      }
+    } catch (err) {
+      console.error("Construction media update error:", err);
+    }
+    setEditingMediaId(null);
+  };
+
+  const handleAddFloorAttachment = async () => {
+    if (!attachingFloor || !floorAttachDoc || !attachPage) return;
+    try {
+      const res = await fetch("/api/floor-attachments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ floorId: attachingFloor.id, documentId: floorAttachDoc.id, pageNumber: Number(attachPage) }),
+      });
+      if (res.ok) {
+        fetchFloorAttachments(floorAttachDoc.id);
+        setAttachingFloor(null);
+        setAttachPage("");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Bağlantı eklenemedi");
+      }
+    } catch {
+      alert("Bağlantı eklenemedi");
+    }
+  };
+
+  const handleRemoveFloorAttachment = async (id: string) => {
+    try {
+      await fetch(`/api/floor-attachments?id=${id}`, { method: "DELETE" });
+      if (floorAttachDoc) fetchFloorAttachments(floorAttachDoc.id);
+    } catch { /* ignore */ }
+  };
+
+  // handleDeleteGroupDoc defined above with handleDeleteDocument
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+  };
+
+  const getStatusColor = (progress: number) => {
+    if (progress === 100) return "bg-[#27ae60]";
+    if (progress > 0) return "bg-[#f39c12]";
+    return "bg-[#c0392b]";
+  };
+
+  const getStatusBg = (progress: number) => {
+    if (progress === 100) return "bg-[#27ae60]";
+    if (progress > 0) return "bg-gradient-to-br from-[#f39c12] to-[#e67e22]";
+    return "bg-[#c0392b]";
+  };
+
+  const formatDate = (date: string) => {
+    if (!date) return "";
+    return new Date(date).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
+  if (loading || !site) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-[#c0392b] border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // Ana kategorileri göster
+  const siteCategories = site.categories.filter(
+    (c) => !c.config?.scope || c.config?.scope !== "block"
+  );
+  const blockCategories = site.categories.filter(
+    (c) => c.config?.scope === "block"
+  );
+  const currentCategories = activeCategory ? activeCategory.subCategories : [];
+  const currentWorkItems = activeCategory ? activeCategory.workItems : [];
+
+  // Aktif kategorinin alt kırılımlarını checklist formatına çevir
+  const categoryChecklistTemplates = activeCategory && activeCategory.subCategories.length > 0
+    ? activeCategory.subCategories.map((sub) => ({
+        id: sub.id,
+        name: sub.name,
+        children: (sub.subCategories || []).map((child) => ({ id: child.id, name: child.name })),
+      }))
+    : checklistTemplates;
+
+  // Sayfa başlığı
+  const pageTitle = activeCategory
+    ? `${site.name} - ${breadcrumb.map((b) => b.name).join(" - ")}`
+    : site.name;
+
+  return (
+    <div className="space-y-4 sm:space-y-6 min-w-0">
+      {/* Üst Bar - MeşaleGrup Tarzı */}
+      <div className="bg-white rounded-xl shadow-sm border-2 border-black overflow-hidden">
+        <div className="flex items-center gap-2 p-3 sm:p-4">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#c0392b] rounded-lg flex items-center justify-center">
+              <svg viewBox="0 0 64 64" className="w-5 h-5 sm:w-6 sm:h-6">
+                <path d="M32 8 L28 28 L20 48 L32 40 L44 48 L36 28 Z" fill="white" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Başlık */}
+          <div className="flex-1 min-w-0 text-center">
+            <h1 className="text-xs sm:text-lg md:text-xl font-bold leading-tight truncate">
+              {site.name}
+              {activeBlock && (
+                <>
+                  {" - "}
+                  <span className="text-[#c0392b]">{activeBlock.name}</span>
+                </>
+              )}
+              {activeConstructionType && (
+                <>
+                  {" - "}
+                  {activeConstructionType === "KABA_INSAAT" ? "Kaba İnşaat" : activeConstructionType === "PEYZAJ" ? "Peyzaj" : activeConstructionType === "BINA_GENEL" ? "Bina Genel" : activeConstructionType === "RUHSAT_ISKAN" ? "Ruhsat-İskan" : "İnce İnşaat"}
+                </>
+              )}
+              {activeConstructionType === "INCE_INSAAT" && inceViewMode && inceViewMode !== "select" && (
+                <>
+                  {" - "}
+                  {inceViewMode === "daire_bazinda" ? "Daire Bazında" : "İş Bazında"}
+                </>
+              )}
+              {activeConstructionType === "INCE_INSAAT" && inceViewMode === "daire_bazinda" && selectedInceDaire && (
+                <>
+                  {" - "}
+                  <span className="text-teal-600">{selectedInceDaire.name}</span>
+                </>
+              )}
+              {activeConstructionType === "INCE_INSAAT" && inceViewMode === "is_bazinda" && selectedInceWork && (
+                <>
+                  {" - "}
+                  <span className="text-indigo-600">{selectedInceWork.name}</span>
+                </>
+              )}
+              {activeCategory && (
+                <>
+                  {" - "}
+                  {breadcrumb.map((b) => b.name).join(" - ")}
+                </>
+              )}
+            </h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigasyon Butonları */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {(activeCategory || activeBlock || activeConstructionType) ? (
+          <>
+            <button
+              onClick={goHome}
+              className="px-4 py-2 bg-[#c0392b] text-white rounded-lg text-sm font-medium hover:bg-[#922b21] transition-all"
+            >
+              Anasayfa
+            </button>
+            <button
+              onClick={navigateBack}
+              className="px-4 py-2 bg-[#c0392b] text-white rounded-lg text-sm font-medium hover:bg-[#922b21] transition-all"
+            >
+              Geri
+            </button>
+          </>
+        ) : (
+          <Link
+            href="/dashboard/sites"
+            className="px-4 py-2 bg-[#c0392b] text-white rounded-lg text-sm font-medium hover:bg-[#922b21] transition-all flex items-center gap-2"
+          >
+            <ArrowLeft size={16} />
+            Şantiyeler
+          </Link>
+        )}
+
+        {/* Breadcrumb */}
+        {(breadcrumb.length > 0 || activeBlock || activeConstructionType) && (
+          <div className="flex flex-wrap items-center gap-1 text-[10px] sm:text-sm text-gray-500">
+            <button
+              onClick={goHome}
+              className="hover:text-[#c0392b] cursor-pointer truncate max-w-[80px] sm:max-w-none"
+            >
+              {site.name}
+            </button>
+            {activeBlock && (
+              <span className="flex items-center gap-1">
+                <ChevronRight size={14} />
+                <button
+                  onClick={() => { setActiveCategory(null); setBreadcrumb([]); setCategoryDocuments([]); }}
+                  className={`hover:text-[#c0392b] cursor-pointer ${!activeCategory ? "font-semibold text-gray-800" : ""}`}
+                >
+                  {activeBlock.name}
+                </button>
+              </span>
+            )}
+            {!activeBlock && activeConstructionType === "PEYZAJ" && (
+              <span className="flex items-center gap-1">
+                <ChevronRight size={14} />
+                <span className="font-semibold text-gray-800">Peyzaj</span>
+              </span>
+            )}
+            {breadcrumb.map((b, i) => (
+              <span key={i} className="flex items-center gap-1">
+                <ChevronRight size={14} />
+                <button
+                  onClick={() => navigateToBreadcrumb(i)}
+                  className={`hover:text-[#c0392b] cursor-pointer ${i === breadcrumb.length - 1 ? "font-semibold text-gray-800" : ""}`}
+                >
+                  {b.name}
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Ana Sayfa - Site kategorileri + Bloklar */}
+      {!activeCategory && !activeBlock && !activeConstructionType && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {siteCategories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => navigateToCategory(cat)}
+              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+            >
+              <div className="w-12 h-12 mx-auto mb-3 bg-[#1a1a2e] rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+                <Building2 size={24} />
+              </div>
+              <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+                {cat.name}
+              </p>
+              {cat.subCategories?.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1">{cat.subCategories.length} alt kategori</p>
+              )}
+            </button>
+          ))}
+          {site.blocks.map((block) => (
+            <button
+              key={block.id}
+              onClick={() => setActiveBlock(block)}
+              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+            >
+              <div className="w-12 h-12 mx-auto mb-3 bg-[#1a1a2e] rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+                <Building2 size={24} />
+              </div>
+              <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+                {block.name}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">{block.floors.length} kat</p>
+            </button>
+          ))}
+          {/* Peyzaj kartı */}
+          <button
+            onClick={() => { setActiveConstructionType("PEYZAJ"); fetchConstructionData(params.id as string, "PEYZAJ"); }}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+          >
+            <div className="w-12 h-12 mx-auto mb-3 bg-green-600 rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+              <Layers size={24} />
+            </div>
+            <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+              Peyzaj
+            </p>
+          </button>
+        </div>
+      )}
+
+      {/* Blok İçi - Sabit 4 Kart */}
+      {!activeCategory && activeBlock && !activeConstructionType && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {/* 1) Kaba İnşaat - Tablo */}
+          <button
+            onClick={() => { setActiveConstructionType("KABA_INSAAT"); fetchConstructionData(activeBlock.id, "KABA_INSAAT"); }}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+          >
+            <div className="w-12 h-12 mx-auto mb-3 bg-amber-600 rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+              <Hammer size={24} />
+            </div>
+            <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+              Kaba İnşaat
+            </p>
+          </button>
+
+          {/* 2) İnce İnşaat */}
+          <button
+            onClick={() => { setActiveConstructionType("INCE_INSAAT"); setInceViewMode("select"); fetchConstructionData(activeBlock.id, "INCE_INSAAT"); }}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+          >
+            <div className="w-12 h-12 mx-auto mb-3 bg-teal-600 rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+              <Hammer size={24} />
+            </div>
+            <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+              İnce İnşaat
+            </p>
+          </button>
+
+          {/* 3) Bina Genel */}
+          <button
+            onClick={() => { setActiveConstructionType("BINA_GENEL"); fetchConstructionData(activeBlock.id, "BINA_GENEL"); }}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+          >
+            <div className="w-12 h-12 mx-auto mb-3 bg-[#1a1a2e] rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+              <Building2 size={24} />
+            </div>
+            <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+              Bina Genel
+            </p>
+          </button>
+
+          {/* 4) Ruhsat-İskan */}
+          <button
+            onClick={() => { setActiveConstructionType("RUHSAT_ISKAN"); fetchConstructionData(activeBlock.id, "RUHSAT_ISKAN"); }}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover text-center group"
+          >
+            <div className="w-12 h-12 mx-auto mb-3 bg-purple-700 rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+              <Layers size={24} />
+            </div>
+            <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+              Ruhsat-İskan
+            </p>
+          </button>
+        </div>
+      )}
+
+      {/* İnce İnşaat UI */}
+      {!activeCategory && activeBlock && activeConstructionType === "INCE_INSAAT" && (
+        <div className="space-y-4">
+          {constructionLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-[#c0392b] border-t-transparent"></div>
+            </div>
+          ) : inceViewMode === "select" ? (
+            /* Mod Seçimi: Daire Bazında / İş Bazında */
+            <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
+              <button
+                onClick={() => setInceViewMode("daire_bazinda")}
+                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover text-center group"
+              >
+                <div className="w-14 h-14 mx-auto mb-3 bg-teal-600 rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+                  <Building2 size={28} />
+                </div>
+                <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+                  Daire Bazında
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Önce daire seç, sonra iş</p>
+              </button>
+              <button
+                onClick={() => setInceViewMode("is_bazinda")}
+                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover text-center group"
+              >
+                <div className="w-14 h-14 mx-auto mb-3 bg-indigo-600 rounded-lg flex items-center justify-center text-white group-hover:bg-[#c0392b] transition-all">
+                  <Hammer size={28} />
+                </div>
+                <p className="text-sm font-semibold text-gray-800 group-hover:text-[#c0392b] transition-all">
+                  İş Bazında
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Önce iş seç, sonra daire</p>
+              </button>
+            </div>
+          ) : (inceDaires.length === 0 || constructionFloors.flatMap((f: any) => f.works || []).length === 0) ? (
+            /* Veri yok uyarısı */
+            <div className="bg-white rounded-xl p-12 text-center border border-gray-200">
+              <Hammer size={48} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500 font-medium">Henüz İnce İnşaat yapılandırması yapılmamış</p>
+              <p className="text-gray-400 text-sm mt-1">Ayarlar sayfasından daire ve iş kalemlerini tanımlayın</p>
+            </div>
+          ) : inceViewMode === "daire_bazinda" && !selectedInceDaire ? (
+            /* Daire Bazında - Daire Grid (4 sütun, dikey akış) */
+            (() => {
+              const allFloorWorks = constructionFloors.flatMap((f: any) => f.works || []).sort((a: any, b: any) => a.order - b.order);
+              // Determine per-daire work names
+              const perDaireNames = new Set<string>();
+              for (const d of inceDaires) for (const a of (inceUnitOverrides[d.id]?.added || [])) perDaireNames.add(a);
+              const baseWorks = allFloorWorks.filter((w: any) => !perDaireNames.has(w.name));
+              // Helper: get works for a specific daire
+              const getWorksForDaire = (daireId: string) => {
+                const ov = inceUnitOverrides[daireId] || { added: [], removed: [] };
+                const filtered = baseWorks.filter((w: any) => !(ov.removed || []).includes(w.name));
+                const added = allFloorWorks.filter((w: any) => (ov.added || []).includes(w.name));
+                return [...filtered, ...added];
+              };
+              const cols = 4;
+              const rows = Math.ceil(inceDaires.length / cols);
+              return (
+                <div className="overflow-x-auto">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3 font-bold text-center text-base border-2 border-[#1e3a5f]">
+                    Daireler
+                  </div>
+                  <div
+                    className="border-2 border-[#1e3a5f] border-t-0"
+                    style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, auto)`, gridAutoFlow: 'column' }}
+                  >
+                    {inceDaires.map((daire) => {
+                      const daireWorks = getWorksForDaire(daire.id);
+                      const totalWorks = daireWorks.length;
+                      const completedWorks = daireWorks.filter((w: any) => {
+                        const key = `${w.id}:${daire.id}`;
+                        return inceEntries[key] && inceEntries[key].mediaCount > 0;
+                      }).length;
+                      const isCompleted = completedWorks > 0 && completedWorks === totalWorks;
+                      const hasProgress = completedWorks > 0;
+                      return (
+                        <button
+                          key={daire.id}
+                          onClick={() => setSelectedInceDaire(daire)}
+                          className={`border border-[#1e3a5f]/30 p-3 text-center transition-all hover:opacity-80 ${
+                            isCompleted ? "bg-green-500 text-white" : hasProgress ? "bg-blue-500 text-white" : "bg-white text-gray-800 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="block font-bold text-sm">{daire.name}</span>
+                          <span className={`block text-xs italic mt-1 ${isCompleted || hasProgress ? "text-white/80" : "text-green-600"}`}>Tamamlanan {completedWorks} / {totalWorks}</span>
+                          <span className={`block text-xs italic ${isCompleted || hasProgress ? "text-white/60" : "text-red-400"}`}>Bekleyen {totalWorks - completedWorks}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          ) : inceViewMode === "daire_bazinda" && selectedInceDaire ? (
+            /* Daire Bazında - Seçilen Daire İçin İşler (4 sütun, dikey akış) */
+            (() => {
+              const allFloorWorks = constructionFloors.flatMap((f: any) => f.works || []).sort((a: any, b: any) => a.order - b.order);
+              const perDaireNames = new Set<string>();
+              for (const d of inceDaires) for (const a of (inceUnitOverrides[d.id]?.added || [])) perDaireNames.add(a);
+              const baseWorks = allFloorWorks.filter((w: any) => !perDaireNames.has(w.name));
+              const ov = inceUnitOverrides[selectedInceDaire.id] || { added: [], removed: [] };
+              const filtered = baseWorks.filter((w: any) => !(ov.removed || []).includes(w.name));
+              const added = allFloorWorks.filter((w: any) => (ov.added || []).includes(w.name));
+              const daireWorks = [...filtered, ...added];
+              const cols = 4;
+              const rows = Math.ceil(daireWorks.length / cols);
+              return (
+                <div className="overflow-x-auto">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3 font-bold text-center text-base border-2 border-[#1e3a5f]">
+                    İşler
+                  </div>
+                  <div
+                    className="border-2 border-[#1e3a5f] border-t-0"
+                    style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, auto)`, gridAutoFlow: 'column' }}
+                  >
+                    {daireWorks.map((work: any) => {
+                      const key = `${work.id}:${selectedInceDaire.id}`;
+                      const entry = inceEntries[key];
+                      const hasMedia = entry && entry.mediaCount > 0;
+                      return (
+                        <button
+                          key={work.id}
+                          onClick={() => openConstructionMedia(work.id, work.name, selectedInceDaire.name, selectedInceDaire.id)}
+                          className={`border border-[#1e3a5f]/30 p-3 text-center transition-all hover:opacity-80 ${
+                            hasMedia ? "bg-green-500 text-white" : "bg-white text-gray-800 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="block font-bold text-xs">{work.name}</span>
+                          <span className={`block text-[10px] mt-1 italic ${hasMedia ? "text-white/70" : "text-gray-400"}`}>{selectedInceDaire.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          ) : inceViewMode === "is_bazinda" && !selectedInceWork ? (
+            /* İş Bazında - İş Listesi (4 sütun, dikey akış) - Tüm dairelerdeki tüm benzersiz işler */
+            (() => {
+              const allFloorWorks = constructionFloors.flatMap((f: any) => f.works || []).sort((a: any, b: any) => a.order - b.order);
+              const perDaireNames = new Set<string>();
+              for (const d of inceDaires) for (const a of (inceUnitOverrides[d.id]?.added || [])) perDaireNames.add(a);
+              const baseWorks = allFloorWorks.filter((w: any) => !perDaireNames.has(w.name));
+              // Collect all unique work names across all daires
+              const allWorkNames = new Map<string, { id: string; name: string; order: number }>();
+              for (const bw of baseWorks) {
+                allWorkNames.set(bw.name, { id: bw.id, name: bw.name, order: bw.order });
+              }
+              for (const daire of inceDaires) {
+                for (const addedName of (inceUnitOverrides[daire.id]?.added || [])) {
+                  if (!allWorkNames.has(addedName)) {
+                    const found = allFloorWorks.find((w: any) => w.name === addedName);
+                    if (found) allWorkNames.set(addedName, { id: found.id, name: found.name, order: found.order });
+                  }
+                }
+              }
+              const allWorks = Array.from(allWorkNames.values()).sort((a, b) => a.order - b.order);
+
+              // Helper: which daires have this work
+              const getDairesForWork = (workName: string) => {
+                return inceDaires.filter((d) => {
+                  const ov = inceUnitOverrides[d.id] || { added: [], removed: [] };
+                  if (perDaireNames.has(workName)) return (ov.added || []).includes(workName);
+                  return !(ov.removed || []).includes(workName);
+                });
+              };
+
+              const cols = 4;
+              const rows = Math.ceil(allWorks.length / cols);
+              return (
+                <div className="overflow-x-auto">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3 font-bold text-center text-base border-2 border-[#1e3a5f]">
+                    İnce İşler
+                  </div>
+                  <div
+                    className="border-2 border-[#1e3a5f] border-t-0"
+                    style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, auto)`, gridAutoFlow: 'column' }}
+                  >
+                    {allWorks.map((work) => {
+                      const workDaires = getDairesForWork(work.name);
+                      const totalDaires = workDaires.length;
+                      const completedDaires = workDaires.filter((daire) => {
+                        const key = `${work.id}:${daire.id}`;
+                        return inceEntries[key] && inceEntries[key].mediaCount > 0;
+                      }).length;
+                      const isCompleted = completedDaires > 0 && completedDaires === totalDaires;
+                      const hasProgress = completedDaires > 0;
+                      return (
+                        <button
+                          key={work.id}
+                          onClick={() => setSelectedInceWork(work)}
+                          className={`border border-[#1e3a5f]/30 p-3 text-center transition-all hover:opacity-80 ${
+                            isCompleted ? "bg-green-500 text-white" : hasProgress ? "bg-blue-500 text-white" : "bg-white text-gray-800 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="block font-bold text-xs">{work.name}</span>
+                          <span className={`block text-[10px] italic mt-1 ${isCompleted || hasProgress ? "text-white/80" : "text-green-600"}`}>Tamamlanan {completedDaires} Daire</span>
+                          <span className={`block text-[10px] italic ${isCompleted || hasProgress ? "text-white/60" : "text-red-400"}`}>Bekleyen {totalDaires - completedDaires} Daire</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          ) : inceViewMode === "is_bazinda" && selectedInceWork ? (
+            /* İş Bazında - Seçilen İş İçin Daire Grid (yalnızca bu işe sahip daireler, 4 sütun, dikey akış) */
+            (() => {
+              const allFloorWorks = constructionFloors.flatMap((f: any) => f.works || []);
+              const perDaireNames = new Set<string>();
+              for (const d of inceDaires) for (const a of (inceUnitOverrides[d.id]?.added || [])) perDaireNames.add(a);
+              // Filter daires to only those that have this work
+              const workDaires = inceDaires.filter((daire) => {
+                const ov = inceUnitOverrides[daire.id] || { added: [], removed: [] };
+                if (perDaireNames.has(selectedInceWork.name)) return (ov.added || []).includes(selectedInceWork.name);
+                return !(ov.removed || []).includes(selectedInceWork.name);
+              });
+              const cols = 4;
+              const rows = Math.ceil(workDaires.length / cols);
+              return (
+                <div className="overflow-x-auto">
+                  <div className="bg-[#1e3a5f] text-white px-4 py-3 font-bold text-center text-base border-2 border-[#1e3a5f]">
+                    Daireler — {selectedInceWork.name}
+                  </div>
+                  <div
+                    className="border-2 border-[#1e3a5f] border-t-0"
+                    style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, auto)`, gridAutoFlow: 'column' }}
+                  >
+                    {workDaires.map((daire) => {
+                      const key = `${selectedInceWork.id}:${daire.id}`;
+                      const entry = inceEntries[key];
+                      const hasMedia = entry && entry.mediaCount > 0;
+                      return (
+                        <button
+                          key={daire.id}
+                          onClick={() => openConstructionMedia(selectedInceWork.id, selectedInceWork.name, daire.name, daire.id)}
+                          className={`border border-[#1e3a5f]/30 p-3 text-center transition-all hover:opacity-80 ${
+                            hasMedia ? "bg-green-500 text-white" : "bg-white text-gray-800 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="block font-bold text-sm">{daire.name}</span>
+                          <span className={`block text-[10px] mt-1 italic ${hasMedia ? "text-white/70" : "text-gray-400"}`}>{selectedInceWork.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          ) : null}
+        </div>
+      )}
+
+      {/* Diğer Blokları Göster/Kaldır butonu - İnce İşler İş Bazında */}
+      {!activeCategory && activeBlock && activeConstructionType === "INCE_INSAAT" && inceViewMode === "is_bazinda" && !selectedInceWork && site && site.blocks.length > 1 && !constructionLoading && constructionFloors.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={async () => {
+              if (showOtherBlocks) {
+                setShowOtherBlocks(false);
+                setOtherBlocksData([]);
+              } else {
+                setShowOtherBlocks(true);
+                await fetchOtherBlocksData(activeBlock.id, "INCE_INSAAT");
+              }
+            }}
+            className="px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#2a4a6f] transition-all"
+          >
+            {showOtherBlocks ? "Diğer Blokları Kaldır" : "Diğer Blokları Göster"}
+          </button>
+        </div>
+      )}
+
+      {/* Diğer Bloklar Read-Only (İnce İşler İş Bazında) */}
+      {showOtherBlocks && activeConstructionType === "INCE_INSAAT" && inceViewMode === "is_bazinda" && !selectedInceWork && (
+        <div className="space-y-4">
+          {otherBlocksLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#1e3a5f] border-t-transparent"></div>
+            </div>
+          ) : otherBlocksData.map((ob) => {
+            const allWorks = ob.floors.flatMap((f: any) => f.works || []);
+            const cols = 4;
+            const rows = Math.ceil(allWorks.length / cols);
+            const obDaires = ob.daires || [];
+            const obInceEntries = ob.inceEntries || {};
+            return (
+              <div key={ob.blockId} className="opacity-75">
+                <div className="bg-gray-600 text-white px-4 py-2 font-bold text-center text-sm rounded-t-xl">{ob.blockName} - İnce İşler</div>
+                {allWorks.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <div
+                      className="border-2 border-[#1e3a5f] border-t-0"
+                      style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, auto)`, gridAutoFlow: 'column' }}
+                    >
+                      {allWorks.map((work: any) => {
+                        const totalDaires = obDaires.length;
+                        const completedDaires = obDaires.filter((daire: any) => {
+                          const key = `${work.id}:${daire.id}`;
+                          return obInceEntries[key] && obInceEntries[key].mediaCount > 0;
+                        }).length;
+                        const isCompleted = completedDaires > 0 && completedDaires === totalDaires;
+                        const hasProgress = completedDaires > 0;
+                        return (
+                          <div
+                            key={work.id}
+                            className={`border border-[#1e3a5f]/30 p-3 text-center cursor-default ${
+                              isCompleted ? "bg-green-400 text-white" : hasProgress ? "bg-blue-400 text-white" : "bg-white text-gray-600"
+                            }`}
+                          >
+                            <span className="block font-bold text-xs">{work.name}</span>
+                            <span className={`block text-[10px] italic mt-1 ${isCompleted || hasProgress ? "text-white/80" : "text-green-600"}`}>Tamamlanan {completedDaires} Daire</span>
+                            <span className={`block text-[10px] italic ${isCompleted || hasProgress ? "text-white/60" : "text-red-400"}`}>Bekleyen {totalDaires - completedDaires} Daire</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-[#1e3a5f] border-t-0 p-4 text-center text-gray-400 text-sm">Veri yok</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* İnşaat Tablosu (Kaba/Peyzaj) */}
+      {!activeCategory && (activeBlock || activeConstructionType === "PEYZAJ") && activeConstructionType && activeConstructionType !== "INCE_INSAAT" && (
+        <div className="space-y-4">
+          {constructionLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-[#c0392b] border-t-transparent"></div>
+            </div>
+          ) : constructionFloors.length === 0 ? (
+            <div className="bg-white rounded-xl p-12 text-center border border-gray-200">
+              <Hammer size={48} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500 font-medium">Henüz inşaat maddesi eklenmemiş</p>
+              <p className="text-gray-400 text-sm mt-1">Ayarlar sayfasından şantiye düzenleme ekranını kullanarak madde ekleyebilirsiniz</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <tbody>
+                    {constructionFloors.map((floor: any, floorIdx: number) => (
+                      <tr key={floor.id} className={floorIdx < constructionFloors.length - 1 ? "border-b-[3px] border-[#1e3a5f]/30" : ""}>
+                        <td className="bg-[#1e3a5f] text-white px-4 py-3 font-semibold text-sm whitespace-nowrap align-middle min-w-[130px] border-r border-[#152d4a]">
+                          {floor.name}
+                        </td>
+                        {floor.works.map((work: any) => {
+                          const entry = constructionEntries[work.id];
+                          const hasMedia = entry && entry.mediaCount > 0;
+                          const nameParts = work.name.includes(" - ") ? work.name.split(" - ") : [work.name];
+                          return (
+                            <td key={work.id} className="p-1">
+                              <button
+                                onClick={() => openConstructionMedia(work.id, work.name, floor.name)}
+                                className={`w-full px-2 py-2 rounded-lg text-xs font-medium transition-all text-center leading-tight ${
+                                  hasMedia
+                                    ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"
+                                }`}
+                              >
+                                {nameParts.length > 1 ? (
+                                  <>
+                                    <span className="block text-[10px] opacity-70">{nameParts[0]}</span>
+                                    <span className="block">{nameParts.slice(1).join(" - ")}</span>
+                                  </>
+                                ) : (
+                                  work.name
+                                )}
+                                {hasMedia && (
+                                  <span className="block text-[10px] opacity-80 mt-0.5">({entry.mediaCount})</span>
+                                )}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Diğer Blokları Göster/Kaldır butonu - Kaba İnşaat / Bina Genel */}
+      {!activeCategory && activeBlock && activeConstructionType && activeConstructionType !== "INCE_INSAAT" && activeConstructionType !== "PEYZAJ" && site && site.blocks.length > 1 && constructionFloors.length > 0 && !constructionLoading && (
+        <div className="flex justify-end">
+          <button
+            onClick={async () => {
+              if (showOtherBlocks) {
+                setShowOtherBlocks(false);
+                setOtherBlocksData([]);
+              } else {
+                setShowOtherBlocks(true);
+                await fetchOtherBlocksData(activeBlock.id, activeConstructionType);
+              }
+            }}
+            className="px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-medium hover:bg-[#2a4a6f] transition-all"
+          >
+            {showOtherBlocks ? "Diğer Blokları Kaldır" : "Diğer Blokları Göster"}
+          </button>
+        </div>
+      )}
+
+      {/* Diğer Bloklar Read-Only (Kaba / Bina Genel) */}
+      {showOtherBlocks && activeConstructionType && activeConstructionType !== "INCE_INSAAT" && activeConstructionType !== "PEYZAJ" && (
+        <div className="space-y-4">
+          {otherBlocksLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#1e3a5f] border-t-transparent"></div>
+            </div>
+          ) : otherBlocksData.map((ob) => (
+            <div key={ob.blockId} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden opacity-75">
+              <div className="bg-gray-600 text-white px-4 py-2 font-semibold text-sm text-center">{ob.blockName}</div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <tbody>
+                    {ob.floors.map((floor: any, floorIdx: number) => (
+                      <tr key={floor.id} className={floorIdx < ob.floors.length - 1 ? "border-b-[3px] border-gray-400/40" : ""}>
+                        <td className="bg-gray-500 text-white px-4 py-3 font-semibold text-sm whitespace-nowrap align-middle min-w-[130px] border-r border-gray-400">
+                          {floor.name}
+                        </td>
+                        {floor.works.map((work: any) => {
+                          const entry = ob.entries[work.id];
+                          const hasMedia = entry && entry.mediaCount > 0;
+                          const nameParts = work.name.includes(" - ") ? work.name.split(" - ") : [work.name];
+                          return (
+                            <td key={work.id} className="p-1">
+                              <div className={`w-full px-2 py-2 rounded-lg text-xs font-medium text-center leading-tight cursor-default ${
+                                hasMedia ? "bg-green-400 text-white" : "bg-gray-100 text-gray-500 border border-gray-200"
+                              }`}>
+                                {nameParts.length > 1 ? (
+                                  <>
+                                    <span className="block text-[10px] opacity-70">{nameParts[0]}</span>
+                                    <span className="block">{nameParts.slice(1).join(" - ")}</span>
+                                  </>
+                                ) : (
+                                  work.name
+                                )}
+                                {hasMedia && <span className="block text-[10px] opacity-80 mt-0.5">({entry.mediaCount})</span>}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Kat Planı Butonu - Alt kategorileri olan kategorilerde göster */}
+      {activeCategory && currentCategories.length > 0 && categoryDocuments.length > 0 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          {categoryDocuments.map((doc) => (
+            <button
+              key={doc.id}
+              onClick={() => { if (activeBlock) setViewingDocIsUygulama(isRuhsatlandirma); setViewingDoc(doc); }}
+              className="flex items-center justify-center gap-3 px-8 py-4 bg-[#1e3a5f] text-white rounded-xl hover:bg-[#2a4a6f] transition-all shadow-md hover:shadow-lg font-semibold text-base flex-1 min-w-[250px]"
+            >
+              <FileText size={22} className="flex-shrink-0" />
+              {activeCategory.name} Kat Planı
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Alt Kategoriler Görünümü */}
+      {activeCategory && currentCategories.length > 0 && (
+        <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {currentCategories.map((subCat) => (
+              <button
+                key={subCat.id}
+                onClick={() => navigateToCategory(subCat)}
+                className="relative rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all min-h-[90px] flex items-center justify-center text-center bg-[#1a1a2e] hover:bg-[#2a2a4e]"
+              >
+                <span className="text-white text-lg font-bold px-4">
+                  {subCat.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* İş Kalemleri - Kart Görünümü (çatı sayfası gibi) */}
+      {activeCategory && currentWorkItems.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+          {currentWorkItems.map((item) => (
+            <div
+              key={item.id}
+              className={`rounded-xl overflow-hidden shadow-md card-hover relative ${
+                item.imageUrl ? "" : getStatusBg(item.progress)
+              }`}
+              style={{
+                backgroundImage: item.imageUrl ? `url(${item.imageUrl})` : undefined,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            >
+              <div className={`p-5 ${item.imageUrl ? "bg-black/50" : ""} text-white min-h-[140px] flex flex-col justify-center items-center text-center`}>
+                <h3 className="text-lg font-bold mb-1">{item.name}</h3>
+                <p className="text-sm opacity-90">
+                  %{item.progress} {item.progress === 100 ? "(tamamlandı)" : ""}
+                </p>
+                {item.startDate && (
+                  <div className="mt-2 text-xs opacity-80">
+                    <p>Başlangıç: {formatDate(item.startDate)}</p>
+                    {item.endDate && <p>Bitiş: {formatDate(item.endDate)}</p>}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Task Entries - Daire bazlı görünüm */}
+      {/* Ruhsatlandırma Proje Grupları */}
+      {activeCategory && currentWorkItems.length === 0 && currentCategories.length === 0 && isRuhsatlandirma && (
+        <div className="space-y-3">
+          {RUHSAT_GROUPS.map((group) => {
+            const docs = groupDocs[group.key] || [];
+            const isUploading = uploadingGroup === group.key;
+            return (
+              <div key={group.key} className="bg-white rounded-lg border border-gray-200 p-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h4 className="text-sm font-semibold text-gray-800 min-w-[140px]">{group.label}</h4>
+
+                  {docs.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap flex-1">
+                      {docs.map((doc) => (
+                        <div key={doc.id} className="flex items-center gap-1 group bg-gray-50 rounded-md border border-gray-200 px-2 py-1">
+                          <button
+                            onClick={() => { setViewingDocIsUygulama(group.key === "uygulama"); setViewingDoc(doc); }}
+                            className="flex items-center gap-1.5 min-w-0 hover:text-[#c0392b] transition-colors"
+                          >
+                            <FileText size={12} className={`flex-shrink-0 ${
+                              doc.fileType === "PDF" ? "text-red-500" :
+                              doc.fileType === "PHOTO" ? "text-blue-500" :
+                              doc.fileType === "DOCUMENT" ? "text-green-500" :
+                              "text-gray-400"
+                            }`} />
+                            <span className="text-[11px] text-gray-600 truncate group-hover:text-[#c0392b]">{doc.fileName}</span>
+                          </button>
+                          {group.key === "uygulama" && activeBlock && (doc.fileType === "PDF" || doc.mimeType === "application/pdf") && (
+                            <button
+                              onClick={() => openFloorAttachPopup(doc)}
+                              className="p-1 rounded text-gray-300 hover:text-[#1e3a5f] transition-colors flex-shrink-0"
+                              title="Kat Bağlantıları"
+                            >
+                              <Layers size={13} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setRenamingDoc({ doc, isGroup: true }); setRenameValue(doc.fileName.replace(/\.[^/.]+$/, "")); }}
+                            className="p-1 rounded text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
+                            title="Adı Düzenle"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGroupDoc(doc)}
+                            className="p-1 rounded text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                            title="Sil"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {docs.length === 0 && (
+                    <p className="text-[11px] text-gray-300 flex-1">Dosya yok</p>
+                  )}
+
+                  <label className={`inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-md font-medium text-[11px] cursor-pointer transition-all flex-shrink-0 ${
+                    isUploading ? "bg-gray-100 text-gray-400" : "bg-gray-50 text-gray-500 hover:bg-[#c0392b] hover:text-white border border-gray-200 hover:border-[#c0392b]"
+                  }`}>
+                    <Upload size={11} />
+                    {isUploading ? "Yükleniyor..." : "Ekle"}
+                    <input
+                      type="file"
+                      onChange={(e) => handleFileSelect(e, group.key)}
+                      disabled={isUploading}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.dwg,.dxf,.zip,.rar,.7z,.txt,.csv"
+                    />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+
+      {/* Dosya Bölümü - Ruhsatlandırma dışındaki kategoriler için */}
+      {activeCategory && currentWorkItems.length === 0 && currentCategories.length === 0 && !isRuhsatlandirma && (
+        <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Dosyalar</span>
+            <div className="h-4 w-px bg-gray-300 hidden sm:block" />
+            {categoryDocuments.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-1 bg-white rounded-md border border-gray-200 hover:border-[#c0392b] transition-all group">
+                <button
+                  onClick={() => { setViewingDoc(doc); }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-left min-w-0"
+                >
+                  <FileText size={14} className={`flex-shrink-0 ${
+                    doc.fileType === "PDF" ? "text-red-500" :
+                    doc.fileType === "PHOTO" ? "text-blue-500" :
+                    doc.fileType === "DOCUMENT" ? "text-green-500" :
+                    "text-gray-500"
+                  }`} />
+                  <span className="text-xs font-medium text-gray-700 truncate max-w-[180px] sm:max-w-[240px] group-hover:text-[#c0392b]">{doc.fileName}</span>
+                </button>
+                <button
+                  onClick={() => { setRenamingDoc({ doc, isGroup: false }); setRenameValue(doc.fileName.replace(/\.[^/.]+$/, "")); }}
+                  className="p-1 rounded text-gray-300 hover:text-blue-500 transition-all flex-shrink-0"
+                  title="Düzenle"
+                >
+                  <Edit3 size={12} />
+                </button>
+                <button
+                  onClick={() => handleDeleteDocument(doc)}
+                  className="p-1 mr-1 rounded text-gray-300 hover:text-red-500 transition-all flex-shrink-0"
+                  title="Sil"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+            <label className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all ${
+              uploading ? "bg-gray-100 text-gray-400" : "bg-white text-gray-500 hover:bg-[#c0392b] hover:text-white border border-dashed border-gray-300 hover:border-[#c0392b]"
+            }`}>
+              <Upload size={12} />
+              {uploading ? "Yükleniyor..." : "Ekle"}
+              <input
+                type="file"
+                onChange={(e) => handleFileSelect(e)}
+                disabled={uploading}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.dwg,.dxf,.zip,.rar,.7z,.txt,.csv"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Kat/Daire Tabanlı Görünüm - Kalıp-Beton-Tuğla tarzı */}
+      {activeCategory && !isRuhsatlandirma && (activeBlock ? true : site.blocks.length > 0) && currentCategories.length === 0 && currentWorkItems.length === 0 && (
+        <div className="space-y-4">
+          {(activeBlock ? [activeBlock] : site.blocks).map((block) => (
+            <div key={block.id} className="space-y-3">
+              {block.floors.map((floor) => (
+                <div key={floor.id} className="flex flex-wrap items-start gap-3">
+                  {/* Kat Adı */}
+                  <div className="bg-[#c0392b] text-white px-4 py-3 rounded-lg min-w-[120px] text-center font-semibold">
+                    <p>{floor.name}</p>
+                    <p className="text-xs opacity-80">(%0)</p>
+                  </div>
+
+                  {/* Daireler */}
+                  <div className="flex flex-wrap gap-2">
+                    {floor.units.map((unit) => (
+                      <div
+                        key={unit.id}
+                        className="bg-[#c0392b] text-white px-3 py-2 rounded-lg text-sm text-center min-w-[100px] cursor-pointer hover:bg-[#922b21] transition-all"
+                      >
+                        <p className="font-medium">{unit.name}</p>
+                        <p className="text-xs opacity-80">(%0)</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dosya Görüntüleyici */}
+      {viewingDoc && (
+        (viewingDoc.fileType === "PDF" || viewingDoc.mimeType === "application/pdf") ? (
+          <Suspense fallback={
+            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-white border-t-transparent"></div>
+            </div>
+          }>
+            <PdfViewer
+              fileUrl={viewingDoc.fileUrl}
+              fileName={viewingDoc.fileName}
+              documentId={viewingDoc.id}
+              onClose={() => { setViewingDoc(null); setViewingDocIsUygulama(false); }}
+              floorLabels={viewingDocFloorLabels}
+              isUygulama={viewingDocIsUygulama}
+              pageFloorUnits={pageFloorUnits}
+              allBlockUnits={activeBlock?.floors.flatMap(f => f.units.map(u => ({ id: u.id, name: u.name }))) || []}
+              siteId={site?.id}
+              checklistTemplates={categoryChecklistTemplates}
+              activeCategoryId={breadcrumb[0]?.category?.id}
+            />
+          </Suspense>
+        ) : /\.(dwg|dxf)$/i.test(viewingDoc.fileName) ? (
+          <Suspense fallback={
+            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-white border-t-transparent"></div>
+            </div>
+          }>
+            <PdfViewer
+              fileUrl={viewingDoc.fileUrl.replace(/\.(dwg|dxf)$/i, '.pdf')}
+              fileName={viewingDoc.fileName}
+              onClose={() => { setViewingDoc(null); setViewingDocIsUygulama(false); }}
+              originalDownloadUrl={viewingDoc.fileUrl}
+            />
+          </Suspense>
+        ) : (
+          <div className="fixed inset-0 bg-black/80 z-50 flex flex-col">
+            <div className="bg-[#1a1a2e] text-white px-3 py-2 flex items-center justify-between flex-shrink-0">
+              <span className="font-medium truncate text-sm flex-1 min-w-0">{viewingDoc.fileName}</span>
+              <div className="flex items-center gap-1">
+                <a href={viewingDoc.fileUrl} download className="p-1.5 hover:bg-white/10 rounded-lg"><Download size={18} /></a>
+                <button onClick={() => setViewingDoc(null)} className="p-1.5 hover:bg-white/10 rounded-lg"><X size={18} /></button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto flex justify-center items-center p-4">
+              {viewingDoc.fileType === "PHOTO" || viewingDoc.mimeType?.startsWith("image/") ? (
+                <img src={viewingDoc.fileUrl} alt={viewingDoc.fileName} className="max-w-full max-h-full object-contain rounded-lg" />
+              ) : (
+                <div className="bg-white rounded-xl p-12 text-center flex flex-col items-center justify-center">
+                  <File size={64} className="text-gray-300 mb-4" />
+                  <p className="text-gray-600 font-medium mb-2">{viewingDoc.fileName}</p>
+                  <p className="text-gray-400 text-sm mb-6">Bu dosya türü önizleme desteklemiyor</p>
+                  <a href={viewingDoc.fileUrl} download className="inline-flex items-center gap-2 px-6 py-3 bg-[#c0392b] text-white rounded-lg hover:bg-[#922b21] font-medium"><Download size={18} />Dosyayı İndir</a>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* İnşaat Medya Popup */}
+      {constructionMediaPopup && constructionMediaMode === "choice" && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setConstructionMediaPopup(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 border-[5px] border-[#1e3a5f]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Camera size={28} className="text-amber-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">{constructionMediaPopup.workName}</h3>
+              <p className="text-xs text-gray-400 mt-1">{constructionMediaPopup.floorName} — {activeBlock?.name || "Peyzaj"}</p>
+              <p className="text-sm text-gray-500 mt-3">{constructionMedias.length} medya mevcut</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button onClick={() => { setConstructionMediaMode("view"); setConstructionViewIndex(0); }} className="flex items-center justify-center gap-3 w-full px-4 py-4 rounded-xl bg-[#1e3a5f] text-white font-medium text-sm hover:bg-[#16304f] transition-all">
+                <Eye size={20} /> Medyaları Görüntüle
+              </button>
+              <button onClick={() => setConstructionMediaMode("upload")} className="flex items-center justify-center gap-3 w-full px-4 py-4 rounded-xl bg-[#c0392b] text-white font-medium text-sm hover:bg-[#922b21] transition-all">
+                <Upload size={20} /> Yeni Medya Yükle & Ayarlar
+              </button>
+            </div>
+            <button onClick={() => setConstructionMediaPopup(null)} className="mt-4 w-full text-center text-sm text-gray-400 hover:text-gray-600">İptal</button>
+          </div>
+        </div>
+      )}
+
+      {/* İnşaat Medya - Yükleme Modu */}
+      {constructionMediaPopup && constructionMediaMode === "upload" && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setConstructionMediaPopup(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border-[5px] border-[#1e3a5f]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Upload size={20} className="text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900 truncate">{constructionMediaPopup.workName}</h3>
+                  <p className="text-xs text-gray-400 truncate">{constructionMediaPopup.floorName} — {activeBlock?.name || "Peyzaj"}</p>
+                </div>
+              </div>
+              <button onClick={() => setConstructionMediaPopup(null)} className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {constructionMediaLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-[#c0392b] border-t-transparent"></div>
+                </div>
+              ) : constructionMedias.length === 0 ? (
+                <div className="text-center py-12">
+                  <ImageIcon size={48} className="mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500 text-sm">Henüz medya yüklenmemiş</p>
+                  <p className="text-gray-400 text-xs mt-1">Aşağıdaki butonlardan yükleyebilirsiniz</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {constructionMedias.map((media: any, idx: number) => (
+                    <div key={media.id} className="relative group rounded-lg overflow-hidden border border-gray-200 cursor-pointer"
+                      onClick={() => { setConstructionMediaMode("view"); setConstructionViewIndex(idx); }}
+                    >
+                      {media.mimeType?.startsWith("video/") ? (
+                        <video src={media.fileUrl} className="w-full h-32 object-cover bg-black pointer-events-none" />
+                      ) : (
+                        <img src={media.fileUrl} alt={media.fileName} className="w-full h-32 object-cover bg-gray-100 pointer-events-none" />
+                      )}
+                      {/* Edit & Delete buttons — top-right corner */}
+                      <div className="absolute top-1.5 right-1.5 flex gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingMediaId(media.id); setEditMediaTitle(media.title || ""); setEditMediaDesc(media.description || ""); }}
+                          className="bg-blue-600 text-white p-1.5 rounded-full hover:bg-blue-700 transition-all shadow"
+                          title="Düzenle"
+                        >
+                          <Edit3 size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConstructionDeleteConfirm({ mediaId: media.id, fileName: media.fileName }); }}
+                          className="bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition-all shadow"
+                          title="Sil"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                        <p className="text-white text-[10px] truncate">{media.title || media.fileName}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3 Upload Buttons */}
+            <div className="flex-shrink-0 px-5 py-4 border-t border-gray-200 space-y-2">
+              {constructionMediaUploading ? (
+                <div className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gray-100 text-gray-400 font-medium text-sm">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-transparent"></div> Yükleniyor...
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => startCamera("photo")} className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-blue-600 text-white font-medium text-sm cursor-pointer hover:bg-blue-700 transition-all">
+                      <Camera size={18} /> Fotoğraf Çek
+                    </button>
+                    <button onClick={() => startCamera("video")} className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-purple-600 text-white font-medium text-sm cursor-pointer hover:bg-purple-700 transition-all">
+                      <Video size={18} /> Video Çek
+                    </button>
+                  </div>
+                  <label className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-[#c0392b] text-white font-medium text-sm cursor-pointer hover:bg-[#922b21] transition-all">
+                    <FolderOpen size={18} /> Galeriden Fotoğraf / Video Seç
+                    <input type="file" onChange={handleConstructionMediaUpload} className="hidden" accept="image/*,video/*" />
+                  </label>
+                  {/* Fallback file inputs for when camera is not available */}
+                  <input ref={photoInputRef} type="file" onChange={handleConstructionMediaUpload} className="hidden" accept="image/*" capture="environment" />
+                  <input ref={videoInputRef} type="file" onChange={handleConstructionMediaUpload} className="hidden" accept="video/*" capture="environment" />
+                </>
+              )}
+              {constructionMedias.length > 0 && (
+                <button onClick={() => { setConstructionMediaMode("view"); setConstructionViewIndex(0); }} className="flex items-center justify-center gap-2 w-full px-4 py-2 rounded-xl text-[#1e3a5f] font-medium text-sm hover:bg-gray-50 transition-all">
+                  <Eye size={16} /> Medyaları Görüntüle ({constructionMedias.length})
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İnşaat Medya - Görüntüleme / Galeri Modu */}
+      {constructionMediaPopup && constructionMediaMode === "view" && constructionMedias.length > 0 && (
+        <div className="fixed inset-0 bg-black/90 flex flex-col z-50" onClick={() => setConstructionMediaPopup(null)}>
+          {/* Gallery Header */}
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-black/50" onClick={(e) => e.stopPropagation()}>
+            <div className="text-white min-w-0">
+              <h3 className="text-sm font-semibold truncate">{constructionMediaPopup.workName}</h3>
+              <p className="text-xs text-white/60">{constructionMediaPopup.floorName} — {constructionViewIndex + 1} / {constructionMedias.length}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const media = constructionMedias[constructionViewIndex];
+                  if (!media) return;
+                  try {
+                    const res = await fetch(media.fileUrl);
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = media.fileName || "medya";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch {}
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg text-white" title="İndir"
+              >
+                <Download size={18} />
+              </button>
+              <button onClick={() => setConstructionMediaMode("upload")} className="p-2 hover:bg-white/10 rounded-lg text-white" title="Yükle">
+                <Upload size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  const media = constructionMedias[constructionViewIndex];
+                  if (media) {
+                    setConstructionDeleteConfirm({ mediaId: media.id, fileName: media.fileName, fromGallery: true });
+                  }
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg text-red-400" title="Sil"
+              >
+                <Trash2 size={18} />
+              </button>
+              <button onClick={() => setConstructionMediaPopup(null)} className="p-2 hover:bg-white/10 rounded-lg text-white">
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Gallery Content */}
+          <div className="flex-1 flex flex-col items-center justify-center overflow-hidden relative" onClick={(e) => e.stopPropagation()}>
+            {/* Prev Button */}
+            {constructionViewIndex > 0 && (
+              <button onClick={() => setConstructionViewIndex(constructionViewIndex - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all">
+                <ArrowLeftIcon size={24} />
+              </button>
+            )}
+
+            {/* Media Display */}
+            <div className="max-w-full flex-1 flex items-center justify-center p-4">
+              {constructionMedias[constructionViewIndex]?.mimeType?.startsWith("video/") ? (
+                <video
+                  key={constructionMedias[constructionViewIndex].id}
+                  src={constructionMedias[constructionViewIndex].fileUrl}
+                  controls
+                  className="max-w-full max-h-[70vh] rounded-lg"
+                />
+              ) : (
+                <img
+                  key={constructionMedias[constructionViewIndex].id}
+                  src={constructionMedias[constructionViewIndex].fileUrl}
+                  alt={constructionMedias[constructionViewIndex].fileName}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                />
+              )}
+            </div>
+
+            {/* Title & Description */}
+            {(constructionMedias[constructionViewIndex]?.title || constructionMedias[constructionViewIndex]?.description) && (
+              <div className="flex-shrink-0 w-full max-w-2xl px-6 pb-2 text-center">
+                {constructionMedias[constructionViewIndex]?.title && (
+                  <h4 className="text-white text-sm font-semibold">{constructionMedias[constructionViewIndex].title}</h4>
+                )}
+                {constructionMedias[constructionViewIndex]?.description && (
+                  <p className="text-white/70 text-xs mt-1">{constructionMedias[constructionViewIndex].description}</p>
+                )}
+              </div>
+            )}
+
+            {/* Next Button */}
+            {constructionViewIndex < constructionMedias.length - 1 && (
+              <button onClick={() => setConstructionViewIndex(constructionViewIndex + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-3 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all">
+                <ArrowRightIcon size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Thumbnail Strip */}
+          {constructionMedias.length > 1 && (
+            <div className="flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3 bg-black/50 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
+              {constructionMedias.map((media: any, idx: number) => (
+                <button
+                  key={media.id}
+                  onClick={() => setConstructionViewIndex(idx)}
+                  className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${idx === constructionViewIndex ? "border-white scale-110" : "border-transparent opacity-60 hover:opacity-100"}`}
+                >
+                  {media.mimeType?.startsWith("video/") ? (
+                    <div className="w-full h-full bg-gray-800 flex items-center justify-center"><Video size={16} className="text-white" /></div>
+                  ) : (
+                    <img src={media.fileUrl} alt="" className="w-full h-full object-cover" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Kamera Çekim Modalı */}
+      {cameraActive && (
+        <div className="fixed inset-0 bg-black z-[60] flex flex-col">
+          {/* Camera Header */}
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-black/80">
+            <div className="text-white">
+              <h3 className="text-sm font-semibold">{cameraType === "photo" ? "Fotoğraf Çek" : "Video Çek"}</h3>
+              {isRecording && <p className="text-xs text-red-400 animate-pulse">Kayıt yapılıyor...</p>}
+            </div>
+            <button onClick={closeCamera} className="p-2 hover:bg-white/10 rounded-lg text-white">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Camera Preview */}
+          <div className="flex-1 flex items-center justify-center bg-black overflow-hidden">
+            <video
+              ref={cameraVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+
+          {/* Camera Controls */}
+          <div className="flex-shrink-0 flex items-center justify-center gap-6 px-4 py-6 bg-black/80">
+            {cameraType === "photo" ? (
+              <button
+                onClick={capturePhoto}
+                className="w-20 h-20 rounded-full bg-white border-4 border-gray-300 hover:border-gray-100 transition-all flex items-center justify-center active:scale-90"
+              >
+                <div className="w-16 h-16 rounded-full bg-white border-2 border-gray-200"></div>
+              </button>
+            ) : !isRecording ? (
+              <button
+                onClick={startVideoRecording}
+                className="w-20 h-20 rounded-full bg-red-600 border-4 border-red-300 hover:bg-red-500 transition-all flex items-center justify-center active:scale-90"
+              >
+                <div className="w-8 h-8 rounded-full bg-red-700"></div>
+              </button>
+            ) : (
+              <button
+                onClick={stopVideoRecording}
+                className="w-20 h-20 rounded-full bg-red-600 border-4 border-red-300 hover:bg-red-500 transition-all flex items-center justify-center animate-pulse active:scale-90"
+              >
+                <div className="w-8 h-8 rounded-sm bg-white"></div>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* İnşaat Medya - Başlık/Açıklama Formu */}
+      {constructionPendingFile && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border-[5px] border-[#1e3a5f]" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Upload size={28} className="text-amber-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 text-center mb-1">Medya Yükle</h3>
+            <p className="text-xs text-gray-400 text-center mb-4">
+              {constructionPendingFileName || "Dosya seçildi"}
+            </p>
+            {/* Preview */}
+            <div className="mb-4 flex justify-center">
+              {constructionPendingFile.type?.startsWith("video/") ? (
+                <video src={constructionPendingUrl!} className="max-h-40 rounded-lg" controls />
+              ) : (
+                <img src={constructionPendingUrl!} alt="Önizleme" className="max-h-40 rounded-lg object-contain" />
+              )}
+            </div>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Başlık (opsiyonel)</label>
+                <input
+                  type="text"
+                  value={constructionMediaTitle}
+                  onChange={(e) => setConstructionMediaTitle(e.target.value)}
+                  placeholder="Medya başlığı..."
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Açıklama (opsiyonel)</label>
+                <textarea
+                  value={constructionMediaDesc}
+                  onChange={(e) => setConstructionMediaDesc(e.target.value)}
+                  placeholder="Medya açıklaması..."
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => { setConstructionPendingFile(null); setConstructionPendingFileName(""); setConstructionMediaTitle(""); setConstructionMediaDesc(""); }}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >İptal</button>
+              <button
+                onClick={confirmConstructionMediaUpload}
+                disabled={constructionMediaUploading}
+                className="px-5 py-2.5 bg-[#c0392b] hover:bg-[#922b21] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {constructionMediaUploading ? "Yükleniyor..." : "Yükle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İnşaat Medya - Silme Onay Popup */}
+      {constructionDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border-[5px] border-[#1e3a5f]" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} className="text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 text-center mb-1">Medya Silinecek</h3>
+            <p className="text-sm text-gray-500 text-center mb-5">
+              <span className="font-medium text-gray-700">&ldquo;{constructionDeleteConfirm.fileName}&rdquo;</span> medyasını silmek istediğinize emin misiniz?
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setConstructionDeleteConfirm(null)}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >İptal</button>
+              <button
+                onClick={async () => {
+                  const { mediaId, fromGallery } = constructionDeleteConfirm;
+                  setConstructionDeleteConfirm(null);
+                  await handleDeleteConstructionMedia(mediaId);
+                  if (fromGallery) {
+                    if (constructionMedias.length <= 1) {
+                      setConstructionMediaMode("upload");
+                    } else if (constructionViewIndex >= constructionMedias.length - 1) {
+                      setConstructionViewIndex(Math.max(0, constructionViewIndex - 1));
+                    }
+                  }
+                }}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium"
+              >Sil</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İnşaat Medya - Düzenleme Popup */}
+      {editingMediaId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4" onClick={() => setEditingMediaId(null)}>
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border-[5px] border-[#1e3a5f]" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Edit3 size={28} className="text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 text-center mb-4">Medya Bilgilerini Düzenle</h3>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Başlık</label>
+                <input
+                  type="text"
+                  value={editMediaTitle}
+                  onChange={(e) => setEditMediaTitle(e.target.value)}
+                  placeholder="Medya başlığı..."
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Açıklama</label>
+                <textarea
+                  value={editMediaDesc}
+                  onChange={(e) => setEditMediaDesc(e.target.value)}
+                  placeholder="Medya açıklaması..."
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setEditingMediaId(null)} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">İptal</button>
+              <button
+                onClick={() => handleUpdateConstructionMedia(editingMediaId, editMediaTitle, editMediaDesc)}
+                className="px-5 py-2.5 bg-[#1e3a5f] hover:bg-[#16304f] text-white rounded-lg text-sm font-medium"
+              >Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dosya Adı Belirleme Popup - Yükleme öncesi */}
+      {pendingFile && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border-[5px] border-[#1e3a5f]">
+            <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Upload size={28} className="text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 text-center mb-1">Dosya Adı Belirle</h3>
+            <p className="text-xs text-gray-400 text-center mb-4">Uzantı otomatik eklenir: <span className="font-medium text-gray-600">{getFileExt(pendingFile.file.name)}</span></p>
+            <div className="flex items-center gap-1 mb-5">
+              <input
+                type="text"
+                value={pendingFileName}
+                onChange={(e) => setPendingFileName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleConfirmUpload()}
+                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                autoFocus
+              />
+              <span className="text-sm text-gray-500 font-medium">{getFileExt(pendingFile.file.name)}</span>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setPendingFile(null)}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">İptal</button>
+              <button onClick={handleConfirmUpload}
+                className="px-5 py-2.5 bg-[#c0392b] hover:bg-[#922b21] text-white rounded-lg text-sm font-medium">Yükle</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dosya Silme Onay Popup */}
+      {deletingDoc && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border-[5px] border-[#1e3a5f]">
+            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} className="text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 text-center mb-1">Dosya Silinecek</h3>
+            <p className="text-sm text-gray-500 text-center mb-5">
+              <span className="font-medium text-gray-700">&ldquo;{deletingDoc.doc.fileName}&rdquo;</span> dosyasını silmek istediğinize emin misiniz?
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setDeletingDoc(null)}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">İptal</button>
+              <button onClick={confirmDelete}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">Sil</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dosya Adı Düzenleme Popup */}
+      {renamingDoc && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border-[5px] border-[#1e3a5f]">
+            <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Edit3 size={28} className="text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 text-center mb-1">Dosya Adını Düzenle</h3>
+            <p className="text-xs text-gray-400 text-center mb-4">Uzantı: <span className="font-medium text-gray-600">{getFileExt(renamingDoc.doc.fileName)}</span></p>
+            <div className="flex items-center gap-1 mb-5">
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRenameDoc()}
+                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+                autoFocus
+              />
+              <span className="text-sm text-gray-500 font-medium">{getFileExt(renamingDoc.doc.fileName)}</span>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setRenamingDoc(null)}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">İptal</button>
+              <button onClick={handleRenameDoc}
+                className="px-5 py-2.5 bg-[#c0392b] hover:bg-[#922b21] text-white rounded-lg text-sm font-medium">Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kat Bağlantıları Popup — doküman bazlı */}
+      {floorAttachDoc && activeBlock && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setFloorAttachDoc(null); setAttachingFloor(null); }}>
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 border-[5px] border-[#1e3a5f] max-h-[85vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-1">
+              <Layers size={20} className="text-[#1e3a5f]" />
+              <h3 className="text-lg font-semibold text-gray-800">Kat Bağlantıları</h3>
+            </div>
+            <p className="text-xs text-gray-400 mb-4 truncate">{floorAttachDoc.fileName} — {activeBlock.name}</p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+              {activeBlock.floors.map((floor) => {
+                const atts = floorAttachments[floor.id] || [];
+                return (
+                  <div key={floor.id} className="bg-gray-50 rounded-lg border border-gray-200 p-2.5 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-[#1e3a5f] truncate">{floor.name}</span>
+                      <button
+                        onClick={() => { setAttachingFloor(floor); setAttachPage(""); }}
+                        className="w-5 h-5 rounded-full bg-[#1e3a5f] hover:bg-[#c0392b] text-white flex items-center justify-center transition-colors flex-shrink-0"
+                        title="Sayfa Bağla"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                    {atts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {atts.map((att) => (
+                          <div key={att.id} className="flex items-center gap-1 bg-white rounded border border-gray-200 px-1.5 py-0.5">
+                            <span className="text-[10px] text-gray-600" title={`Sayfa ${att.pageNumber}`}>S.{att.pageNumber}</span>
+                            <button onClick={() => handleRemoveFloorAttachment(att.id)} className="text-gray-300 hover:text-red-500 transition-colors"><X size={10} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-300">Bağlı sayfa yok</p>
+                    )}
+
+                    {/* İnline sayfa numarası girişi */}
+                    {attachingFloor?.id === floor.id && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <input
+                          type="number"
+                          min={1}
+                          value={attachPage}
+                          onChange={(e) => setAttachPage(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleAddFloorAttachment()}
+                          placeholder="Sayfa no"
+                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs outline-none focus:ring-1 focus:ring-[#1e3a5f] min-w-0"
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleAddFloorAttachment}
+                          disabled={!attachPage}
+                          className="px-2 py-1 bg-[#1e3a5f] hover:bg-[#152d4a] disabled:bg-gray-300 text-white rounded text-xs font-medium transition-colors"
+                        >
+                          Ekle
+                        </button>
+                        <button
+                          onClick={() => setAttachingFloor(null)}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end">
+              <button onClick={() => { setFloorAttachDoc(null); setAttachingFloor(null); }}
+                className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">Kapat</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yükleme Progress Overlay */}
+      {uploadProgress !== null && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[280px] bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-[#1e3a5f] border-t-transparent flex-shrink-0" />
+            <span className="text-sm font-medium text-gray-700 truncate">Yükleniyor... %{uploadProgress}</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-[#1e3a5f] h-2 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Yükleme Başarılı Toast */}
+      {uploadSuccess && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-green-600 text-white rounded-xl shadow-lg px-5 py-3 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4">
+          <CheckCircle size={18} />
+          <span className="text-sm font-medium truncate max-w-[200px]">{uploadSuccess}</span>
+          <span className="text-sm opacity-90">yüklendi</span>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="sohbet"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_sohbet_short"
+        android:shortcutLongLabel="@string/sc_sohbet_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://uzaktansantiye.com/dashboard/sohbet"
+            android:targetPackage="com.mesalegrup.uzaktansantiye"
+            android:targetClass="com.mesalegrup.uzaktansantiye.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="sites"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_sites_short"
+        android:shortcutLongLabel="@string/sc_sites_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://uzaktansantiye.com/dashboard/sites"
+            android:targetPackage="com.mesalegrup.uzaktansantiye"
+            android:targetClass="com.mesalegrup.uzaktansantiye.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="home"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_home_short"
+        android:shortcutLongLabel="@string/sc_home_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://uzaktansantiye.com/dashboard"
+            android:targetPackage="com.mesalegrup.uzaktansantiye"
+            android:targetClass="com.mesalegrup.uzaktansantiye.MainActivity" />
+    </shortcut>
+</shortcuts>

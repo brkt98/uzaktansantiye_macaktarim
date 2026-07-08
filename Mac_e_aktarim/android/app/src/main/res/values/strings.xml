@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Uzaktan Şantiye</string>
+    <string name="title_activity_main">Uzaktan Şantiye</string>
+    <string name="package_name">com.mesalegrup.uzaktansantiye</string>
+    <string name="custom_url_scheme">com.mesalegrup.uzaktansantiye</string>
+    <string name="sc_sohbet_short">Sohbet</string>
+    <string name="sc_sohbet_long">Yeni sohbet</string>
+    <string name="sc_sites_short">Şantiyeler</string>
+    <string name="sc_sites_long">Şantiyeler</string>
+    <string name="sc_home_short">Ana Sayfa</string>
+    <string name="sc_home_long">Ana Sayfa</string>
+</resources>
