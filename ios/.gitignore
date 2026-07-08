@@ -1,3 +1,4 @@
+# === Build çıktıları (paylaşılmaz) ===
 App/build
 App/Pods
 App/output
@@ -5,9 +6,7 @@ App/App/public
 DerivedData
 xcuserdata
 
-# Cordova plugins for Capacitor
+# Cordova plugins for Capacitor (üretilen)
 capacitor-cordova-ios-plugins
 
-# Generated Config files
-App/App/capacitor.config.json
-App/App/config.xml
+# NOT: capacitor.config.json ve config.xml artık BİLEREK paylaşılıyor.

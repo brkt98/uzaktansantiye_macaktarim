@@ -1,0 +1,48 @@
+{
+	"appId": "com.mesalegrup.uzaktansantiye",
+	"appName": "Uzaktan Şantiye",
+	"webDir": "public",
+	"backgroundColor": "#1a1a2e",
+	"server": {
+		"url": "https://uzaktansantiye.com",
+		"hostname": "uzaktansantiye.com",
+		"androidScheme": "https",
+		"cleartext": false
+	},
+	"ios": {
+		"contentInset": "never",
+		"limitsNavigationsToAppBoundDomains": true
+	},
+	"android": {
+		"allowMixedContent": false
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 1500,
+			"backgroundColor": "#1a1a2e",
+			"showSpinner": false
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		},
+		"Keyboard": {
+			"resize": "native"
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"CAPCameraPlugin",
+		"FilesystemPlugin",
+		"HapticsPlugin",
+		"CAPNetworkPlugin",
+		"PreferencesPlugin",
+		"PushNotificationsPlugin",
+		"SharePlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}
