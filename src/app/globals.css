@@ -1348,6 +1348,17 @@ body {
   padding-top: calc(0.75rem + env(safe-area-inset-top)) !important;
 }
 
+/* Alt-sabit aksiyon satırları iPhone home-indicator'ının (≈34px) ÜSTÜNDE kalsın.
+   Arama ekranları (CallRoom/NativeAudioCallRoom) bu sınıfı zaten kullanıyordu ama
+   tanımı yoktu (no-op). pb-7 (1.75rem) taban + env; web'de env=0 → aynı görünüm. */
+.modal-safe-bottom {
+  padding-bottom: calc(1.75rem + env(safe-area-inset-bottom)) !important;
+}
+/* Sıfır-tabanlı varyant (MessageActionSheet): yalnız güvenli alan kadar boşluk. */
+.modal-safe-bottom-0 {
+  padding-bottom: env(safe-area-inset-bottom) !important;
+}
+
 /* Metraj: yeni eklenen kaleme doğru vurgu (satır arka planı kısa süre yanıp söner) */
 @keyframes metrajRowPop {
   0%   { background-color: rgba(192, 57, 43, 0.18); }
@@ -1474,6 +1485,19 @@ body {
 [data-device="mobile"] select,
 [data-device="mobile"] textarea {
   font-size: 16px;
+}
+/* iOS odak-zoom'u engelle — DOM ATA-BAĞIMSIZ (dokunmatik cihaz).
+   Üstteki kural [data-device] altındaki input'lara uygular; ama tam-ekran
+   sohbet ve modallar artık document.body'ye PORTAL edildiğinden (fixed-in-scroller
+   fix'i) o kapsamın DIŞINDA kalıyorlar → tekrar <16px → klavye açılınca zoom.
+   `pointer: coarse` (telefon + iPad) portal edilmiş input'ları da yakalar;
+   masaüstü fare (pointer: fine) etkilenmez. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 /* Momentum + overscroll: içerik/modaller zincirlemesin */
 [data-device="mobile"] main,
