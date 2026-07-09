@@ -66,32 +66,60 @@ export default function ChatWindow({
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const pendingTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const convId = conversation.id;
 
   const scrollToEnd = () =>
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 
-  // iOS: klavye açılınca WebView native resize ile küçülür; kaydırma konteyneri
-  // küçülünce eski scroll pozisyonu artık "en alt" olmaktan çıkar → sohbet
-  // "geriye gitmiş" gibi görünür. Klavye tam açıldığında (resize bitince) listeyi
-  // ANINDA en alta sabitle → son mesaj klavyenin hemen üstünde kalır.
+  // iOS telefon tam-ekran sohbetinde klavye deneyimi:
+  //  - Sorun: varsayilan native resize WebView cercevesini kucultup TUM sayfayi
+  //    reflow ediyor → jank/donma; ayrica scroll pozisyonu "en alt"ta kalmiyordu.
+  //  - Cozum: SOHBETTE klavye modunu "none" yap (WebView kuculmez → reflow/jank yok),
+  //    chat kokunu visualViewport.height'e bagla (klavye ustune purussuzce otur —
+  //    visualViewport klavye animasyonu boyunca surekli guncellenir) ve her
+  //    degisimde mesaj listesini EN ALTA sabitle. Cikista mod "native"e geri doner
+  //    (diger formlar etkilenmez).
   useEffect(() => {
-    let h: { remove: () => void } | undefined;
+    if (isTablet) return; // yalniz telefon tam-ekran sohbeti
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    let kb: { setResizeMode: (o: { mode: unknown }) => Promise<void> } | undefined;
+    const apply = () => {
+      if (rootRef.current) rootRef.current.style.height = `${vv.height}px`;
+      const el = listRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
     (async () => {
       try {
         const { Capacitor } = await import("@capacitor/core");
-        if (!Capacitor.isNativePlatform()) return;
-        const { Keyboard } = await import("@capacitor/keyboard");
-        h = await Keyboard.addListener("keyboardDidShow", () => {
-          endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-        });
+        if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
+        const { Keyboard, KeyboardResize } = await import("@capacitor/keyboard");
+        await Keyboard.setResizeMode({ mode: KeyboardResize.None });
+        kb = Keyboard as unknown as { setResizeMode: (o: { mode: unknown }) => Promise<void> };
+        vv.addEventListener("resize", apply);
+        vv.addEventListener("scroll", apply);
+        apply();
       } catch {
-        /* keyboard eklentisi yok → yoksay */
+        /* keyboard eklentisi yok → native resize'a birak */
       }
     })();
-    return () => h?.remove();
-  }, []);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      if (rootRef.current) rootRef.current.style.height = "";
+      if (kb) {
+        (async () => {
+          try {
+            const { KeyboardResize } = await import("@capacitor/keyboard");
+            await kb!.setResizeMode({ mode: KeyboardResize.Native });
+          } catch { /* yoksay */ }
+        })();
+      }
+    };
+  }, [isTablet]);
 
   // Okundu: socket ile (realtime hem /read'i çağırır HEM "read" yayınlar → karşı taraf anında mavi tik).
   const markRead = useCallback(() => {
@@ -583,7 +611,7 @@ export default function ChatWindow({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 chat-enter">
+    <div ref={rootRef} className="flex flex-col h-full bg-gray-50 chat-enter">
       <div
         className="flex items-center gap-3 px-4 bg-white border-b border-gray-200 flex-shrink-0"
         style={isTablet ? { height: "3.5rem" } : { paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
@@ -619,7 +647,7 @@ export default function ChatWindow({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5">
         {loading ? (
           <div className="text-center text-gray-400 py-8 text-sm">Yükleniyor…</div>
         ) : messages.length === 0 ? (
