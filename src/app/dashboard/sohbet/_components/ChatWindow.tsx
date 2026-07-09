@@ -9,6 +9,7 @@ import { type Conversation, type ChatMessage, convTitle, groupReactions } from "
 import { downloadFile } from "@/lib/downloadFile";
 import { takeNativePhoto } from "@/lib/nativeCamera";
 import { hapticTap, hapticBuzz } from "@/lib/haptics";
+import { useLightStatusBarOnIos } from "@/lib/statusBarStyle";
 import MessageBubble from "./MessageBubble";
 import CameraDialog from "../../satis/_components/CameraDialog";
 import MediaAlbum from "./MediaAlbum";
@@ -17,6 +18,7 @@ import GroupInfoDialog from "./GroupInfoDialog";
 import MessageActionSheet from "./MessageActionSheet";
 import ForwardDialog from "./ForwardDialog";
 import ChatMediaViewer, { type ChatMediaItem } from "./ChatMediaViewer";
+import BodyPortal from "@/components/BodyPortal";
 
 const PdfViewer = lazy(() => import("@/components/PdfViewer"));
 
@@ -48,6 +50,9 @@ export default function ChatWindow({
   conversations?: Conversation[];
   onOpenConversation?: (id: string) => void;
 }) {
+  // Telefonda sohbet tam-ekran BEYAZ baslikla acilir -> iOS status bar
+  // ikonlarini koyulastir (yoksa saat/pil beyaz-ustune-beyaz gorunmez).
+  useLightStatusBarOnIos(!isTablet);
   const [showInfo, setShowInfo] = useState(false);
   const [menuMsg, setMenuMsg] = useState<ChatMessage | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -66,6 +71,27 @@ export default function ChatWindow({
 
   const scrollToEnd = () =>
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+
+  // iOS: klavye açılınca WebView native resize ile küçülür; kaydırma konteyneri
+  // küçülünce eski scroll pozisyonu artık "en alt" olmaktan çıkar → sohbet
+  // "geriye gitmiş" gibi görünür. Klavye tam açıldığında (resize bitince) listeyi
+  // ANINDA en alta sabitle → son mesaj klavyenin hemen üstünde kalır.
+  useEffect(() => {
+    let h: { remove: () => void } | undefined;
+    (async () => {
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (!Capacitor.isNativePlatform()) return;
+        const { Keyboard } = await import("@capacitor/keyboard");
+        h = await Keyboard.addListener("keyboardDidShow", () => {
+          endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+        });
+      } catch {
+        /* keyboard eklentisi yok → yoksay */
+      }
+    })();
+    return () => h?.remove();
+  }, []);
 
   // Okundu: socket ile (realtime hem /read'i çağırır HEM "read" yayınlar → karşı taraf anında mavi tik).
   const markRead = useCallback(() => {
@@ -659,6 +685,7 @@ export default function ChatWindow({
               else setShowCamera(true);                     // PC/web: webcam (CameraDialog)
             }} disabled={uploading} className="text-gray-500 hover:text-[#1e3a5f] p-1.5 shrink-0 disabled:opacity-40 transition-colors" title="Kamera" aria-label="Kamera"><Camera size={22} /></button>
             <input
+              type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -727,7 +754,7 @@ export default function ChatWindow({
         <ForwardDialog conversations={conversations || []} meId={meId} busy={forwardBusy} onPick={forwardTo} onClose={() => setForwardMsg(null)} />
       )}
       {deleteMsg && (
-        <div className="fixed inset-0 z-[95] bg-black/30 flex items-end sm:items-center sm:justify-center" onClick={() => setDeleteMsg(null)}>
+        <BodyPortal><div className="fixed inset-0 z-[95] bg-black/30 flex items-end sm:items-center sm:justify-center" onClick={() => setDeleteMsg(null)}>
           <div className="w-full sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
             <div className="mx-3 bg-white rounded-2xl shadow-xl overflow-hidden divide-y divide-gray-100" style={{ marginBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
               {canDeleteEveryone(deleteMsg) && (
@@ -737,7 +764,7 @@ export default function ChatWindow({
               <button onClick={() => setDeleteMsg(null)} className="w-full px-5 py-3.5 text-left text-gray-500 text-sm active:bg-gray-100">İptal</button>
             </div>
           </div>
-        </div>
+        </div></BodyPortal>
       )}
     </div>
   );
