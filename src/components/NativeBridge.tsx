@@ -163,25 +163,31 @@ export default function NativeBridge() {
           const { value } = await Preferences.get({ key: "push_token" });
           if (!value) return;
           try {
-            await fetch("/api/push/register", {
+            const r = await fetch("/api/push/register", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
               body: JSON.stringify({ token: value, platform: Capacitor.getPlatform() }),
             });
-          } catch {
-            /* offline/401 → sonraki açılışta tekrar denenir */
+            console.log("[iospush] register status", r.status);
+          } catch (e) {
+            console.log("[iospush] register error", e);
           }
         };
 
         if (Capacitor.getPlatform() === "ios") {
+          console.log("[iospush] iOS branch, importing plugin…");
           // iOS → Firebase Cloud Messaging (FCM token; APNs'i altında kullanır)
           const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+          console.log("[iospush] plugin imported ok");
           // İzin verilmeden token kaydetme (Android'le tutarlı). Plugin izinsiz de
           // token üretebiliyor → izin yokken sunucuya yollamayalım.
           let granted = false;
           const applyToken = async (token?: string | null) => {
-            if (!granted || !token) return;
+            if (!granted || !token) {
+              console.log("[iospush] applyToken skip", { granted, hasToken: !!token });
+              return;
+            }
             await Preferences.set({ key: "push_token", value: token });
             await syncToken();
           };
@@ -215,14 +221,19 @@ export default function NativeBridge() {
           }
 
           let perm = await FirebaseMessaging.checkPermissions();
-          if (perm.receive !== "granted") perm = await FirebaseMessaging.requestPermissions();
+          console.log("[iospush] checkPermissions", perm.receive);
+          if (perm.receive !== "granted") {
+            perm = await FirebaseMessaging.requestPermissions();
+            console.log("[iospush] requestPermissions", perm.receive);
+          }
           granted = perm.receive === "granted";
           if (granted) {
             try {
               const { token } = await FirebaseMessaging.getToken();
+              console.log("[iospush] getToken", token ? token.slice(0, 16) + "…" : "null");
               await applyToken(token);
-            } catch {
-              /* APNs henüz hazır değil → tokenReceived / resume'da uygulanır */
+            } catch (err) {
+              console.error("[iospush] getToken error", err);
             }
           }
         } else {
@@ -260,8 +271,8 @@ export default function NativeBridge() {
           void syncToken();
         });
         cleanups.push(() => resumeHandle.remove());
-      } catch {
-        /* eklenti yoksa yoksay */
+      } catch (e) {
+        console.error("[iospush] push setup error", e);
       }
 
       // --- Pil optimizasyonu muafiyeti (Android): arka planda push güvenilirliği ---
