@@ -152,8 +152,10 @@ export default function NativeBridge() {
       }
 
       // --- Push bildirimleri (kayıt + tıklama yönlendirmesi) ---
+      // iOS: @capacitor/push-notifications ham APNs token verir; sunucumuz FCM'e
+      // gönderdiği için iOS'ta FCM token GEREKİR → @capacitor-firebase/messaging.
+      // Android: mevcut @capacitor/push-notifications akışı (FCM token) AYNEN korunur.
       try {
-        const { PushNotifications } = await import("@capacitor/push-notifications");
         const { Preferences } = await import("@capacitor/preferences");
 
         // Saklanan token'ı sunucuya gönder (giriş yapılmışsa kaydedilir).
@@ -172,28 +174,84 @@ export default function NativeBridge() {
           }
         };
 
-        const regHandle = await PushNotifications.addListener("registration", async (t) => {
-          await Preferences.set({ key: "push_token", value: t.value });
-          await syncToken();
-        });
-        cleanups.push(() => regHandle.remove());
+        if (Capacitor.getPlatform() === "ios") {
+          // iOS → Firebase Cloud Messaging (FCM token; APNs'i altında kullanır)
+          const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
+          // İzin verilmeden token kaydetme (Android'le tutarlı). Plugin izinsiz de
+          // token üretebiliyor → izin yokken sunucuya yollamayalım.
+          let granted = false;
+          const applyToken = async (token?: string | null) => {
+            if (!granted || !token) return;
+            await Preferences.set({ key: "push_token", value: token });
+            await syncToken();
+          };
 
-        const tapHandle = await PushNotifications.addListener(
-          "pushNotificationActionPerformed",
-          (action) => {
-            const url = action.notification?.data?.relatedUrl;
-            if (url) goTo(url);
+          const tokH = await FirebaseMessaging.addListener("tokenReceived", (e) => {
+            void applyToken(e.token);
+          });
+          cleanups.push(() => tokH.remove());
+
+          const tapH = await FirebaseMessaging.addListener("notificationActionPerformed", (e) => {
+            const data = e.notification?.data as Record<string, string> | undefined;
+            if (data?.relatedUrl) goTo(String(data.relatedUrl));
+          });
+          cleanups.push(() => tapH.remove());
+
+          // iOS'ta iki push plugin'i aynı bildirim handler'ını paylaşır; hangisi
+          // aktifse dokunma yönlendirmesi çalışsın diye push-notifications'ın tap
+          // event'ini de dinle (yedek; token yine FCM'den gelir).
+          try {
+            const { PushNotifications } = await import("@capacitor/push-notifications");
+            const tapH2 = await PushNotifications.addListener(
+              "pushNotificationActionPerformed",
+              (action) => {
+                const url = action.notification?.data?.relatedUrl;
+                if (url) goTo(url);
+              }
+            );
+            cleanups.push(() => tapH2.remove());
+          } catch {
+            /* yoksay */
           }
-        );
-        cleanups.push(() => tapHandle.remove());
 
-        // İzin iste, sonra FCM/APNs'e kaydol
-        let perm = await PushNotifications.checkPermissions();
-        if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") {
-          perm = await PushNotifications.requestPermissions();
-        }
-        if (perm.receive === "granted") {
-          await PushNotifications.register();
+          let perm = await FirebaseMessaging.checkPermissions();
+          if (perm.receive !== "granted") perm = await FirebaseMessaging.requestPermissions();
+          granted = perm.receive === "granted";
+          if (granted) {
+            try {
+              const { token } = await FirebaseMessaging.getToken();
+              await applyToken(token);
+            } catch {
+              /* APNs henüz hazır değil → tokenReceived / resume'da uygulanır */
+            }
+          }
+        } else {
+          // Android → @capacitor/push-notifications (FCM token)
+          const { PushNotifications } = await import("@capacitor/push-notifications");
+
+          const regHandle = await PushNotifications.addListener("registration", async (t) => {
+            await Preferences.set({ key: "push_token", value: t.value });
+            await syncToken();
+          });
+          cleanups.push(() => regHandle.remove());
+
+          const tapHandle = await PushNotifications.addListener(
+            "pushNotificationActionPerformed",
+            (action) => {
+              const url = action.notification?.data?.relatedUrl;
+              if (url) goTo(url);
+            }
+          );
+          cleanups.push(() => tapHandle.remove());
+
+          // İzin iste, sonra FCM/APNs'e kaydol
+          let perm = await PushNotifications.checkPermissions();
+          if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") {
+            perm = await PushNotifications.requestPermissions();
+          }
+          if (perm.receive === "granted") {
+            await PushNotifications.register();
+          }
         }
 
         // Uygulama öne geldiğinde token'ı tekrar senkronla (giriş sonrası garanti)

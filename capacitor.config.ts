@@ -51,6 +51,12 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
+    // iOS push @capacitor-firebase/messaging üzerinden gelir; ön-plan davranışını
+    // açıkça belirt (yoksa plugin default'una bağlı kalır). Uygulama açıkken de
+    // banner + ses göster.
+    FirebaseMessaging: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
     // iOS'ta klavye açılınca WKWebView çerçevesini KÜÇÜLT (Android adjustResize
     // eşleniği) → 100dvh/env() yeniden hesaplanır, sohbet input'u klavyenin
     // üstünde kalır. Eklenti yoksa iOS klavyede viewport küçülmez ve WKWebView
