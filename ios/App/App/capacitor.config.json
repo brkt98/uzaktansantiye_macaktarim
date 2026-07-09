@@ -29,15 +29,24 @@
 				"alert"
 			]
 		},
+		"FirebaseMessaging": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		},
 		"Keyboard": {
 			"resize": "native"
 		}
 	},
 	"packageClassList": [
+		"FirebaseMessagingPlugin",
 		"AppPlugin",
 		"CAPCameraPlugin",
 		"FilesystemPlugin",
 		"HapticsPlugin",
+		"KeyboardPlugin",
 		"CAPNetworkPlugin",
 		"PreferencesPlugin",
 		"PushNotificationsPlugin",
