@@ -157,7 +157,20 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
         data: payload.data ?? {},
         apns: {
           headers: { "apns-priority": "10", "apns-push-type": "alert" },
-          payload: { aps: { sound: "default" } },
+          payload: {
+            aps: {
+              sound: "default",
+              // Sohbet mesaji: kilit ekraninda Yanitla/Okundu aksiyonlari
+              // (AppDelegate'te kayitli CHAT_MESSAGE kategorisi) + konusma
+              // bazli gruplama (threadId -> apns thread-id).
+              ...(d.type === "message"
+                ? {
+                    category: "CHAT_MESSAGE",
+                    ...(d.conversationId ? { threadId: d.conversationId } : {}),
+                  }
+                : {}),
+            },
+          },
         },
       });
       collectStale(res, iosTokens);

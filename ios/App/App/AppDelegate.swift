@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,7 +9,35 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        // Sohbet bildirimi aksiyonları (Faz 1b): kilit ekranında "Yanıtla"
+        // (metin girişli) + "Okundu". Sunucu, iOS sohbet push'una
+        // aps.category = "CHAT_MESSAGE" ekler (src/lib/push.ts); seçim JS'e
+        // notificationActionPerformed (actionId REPLY/MARK_READ + inputValue)
+        // event'i olarak düşer ve NativeBridge.tsx işler.
+        registerChatNotificationCategories()
         return true
+    }
+
+    private func registerChatNotificationCategories() {
+        let reply = UNTextInputNotificationAction(
+            identifier: "REPLY",
+            title: "Yanıtla",
+            options: [],
+            textInputButtonTitle: "Gönder",
+            textInputPlaceholder: "Mesaj…"
+        )
+        let markRead = UNNotificationAction(
+            identifier: "MARK_READ",
+            title: "Okundu",
+            options: []
+        )
+        let chat = UNNotificationCategory(
+            identifier: "CHAT_MESSAGE",
+            actions: [reply, markRead],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([chat])
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

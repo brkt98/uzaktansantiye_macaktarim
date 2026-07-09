@@ -163,31 +163,25 @@ export default function NativeBridge() {
           const { value } = await Preferences.get({ key: "push_token" });
           if (!value) return;
           try {
-            const r = await fetch("/api/push/register", {
+            await fetch("/api/push/register", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
               body: JSON.stringify({ token: value, platform: Capacitor.getPlatform() }),
             });
-            console.log("[iospush] register status", r.status);
-          } catch (e) {
-            console.log("[iospush] register error", e);
+          } catch {
+            /* offline/401 -> sonraki acilista tekrar denenir */
           }
         };
 
         if (Capacitor.getPlatform() === "ios") {
-          console.log("[iospush] iOS branch, importing plugin…");
           // iOS → Firebase Cloud Messaging (FCM token; APNs'i altında kullanır)
           const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
-          console.log("[iospush] plugin imported ok");
           // İzin verilmeden token kaydetme (Android'le tutarlı). Plugin izinsiz de
           // token üretebiliyor → izin yokken sunucuya yollamayalım.
           let granted = false;
           const applyToken = async (token?: string | null) => {
-            if (!granted || !token) {
-              console.log("[iospush] applyToken skip", { granted, hasToken: !!token });
-              return;
-            }
+            if (!granted || !token) return;
             await Preferences.set({ key: "push_token", value: token });
             await syncToken();
           };
@@ -197,22 +191,66 @@ export default function NativeBridge() {
           });
           cleanups.push(() => tokH.remove());
 
+          // Bildirim aksiyonu isleme (tap / REPLY / MARK_READ) — ORTAK handler.
+          // KRITIK: iOS'ta iki push plugin'i (firebase-messaging + push-notifications)
+          // Capacitor'un TEK notification-handler slotunu paylasir; hangisinin
+          // kazanacagi yukleme sirasina baglidir. Bu yuzden aksiyonlar HANGI
+          // dinleyiciye duserse dussun ayni sekilde islenmeli. Slot tekil oldugundan
+          // ayni yanit iki dinleyiciye BIRDEN gelmez; yine de dedup ile koruyoruz.
+          let lastActionKey = "";
+          const handleNotifAction = (
+            actionId: string | undefined,
+            inputValue: string | undefined,
+            data: Record<string, string> | undefined
+          ) => {
+            const key = `${actionId}|${data?.messageId || data?.relatedUrl || ""}|${inputValue || ""}`;
+            if (key && key === lastActionKey) return; // ayni aksiyonu iki kez isleme
+            lastActionKey = key;
+            const convId = data?.conversationId;
+            // Kilit ekrani "Yanitla": yazilan metni dogrudan sohbet API'sine gonder
+            // (cerez oturum; iOS uygulamayi arka planda baslatir, WebView boot eder).
+            if (actionId === "REPLY" && convId && inputValue) {
+              void fetch(`/api/chat/conversations/${convId}/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ body: inputValue }),
+              }).catch(() => {});
+              return;
+            }
+            // "Okundu": konusmayi okundu isaretle (rozet/unread sifirlanir)
+            if (actionId === "MARK_READ" && convId) {
+              void fetch(`/api/chat/conversations/${convId}/read`, {
+                method: "POST",
+                credentials: "include",
+              }).catch(() => {});
+              return;
+            }
+            // Bildirime dokunma (default) -> ilgili sayfaya git
+            if (actionId === "tap" && data?.relatedUrl) goTo(String(data.relatedUrl));
+          };
+
           const tapH = await FirebaseMessaging.addListener("notificationActionPerformed", (e) => {
-            const data = e.notification?.data as Record<string, string> | undefined;
-            if (data?.relatedUrl) goTo(String(data.relatedUrl));
+            handleNotifAction(
+              e.actionId,
+              e.inputValue,
+              e.notification?.data as Record<string, string> | undefined
+            );
           });
           cleanups.push(() => tapH.remove());
 
-          // iOS'ta iki push plugin'i aynı bildirim handler'ını paylaşır; hangisi
-          // aktifse dokunma yönlendirmesi çalışsın diye push-notifications'ın tap
-          // event'ini de dinle (yedek; token yine FCM'den gelir).
+          // push-notifications plugin'i slotu kazanirsa aksiyonlar BU event'e duser
+          // (yukleme sirasina gore genelde boyle olur) -> ayni ortak handler.
           try {
             const { PushNotifications } = await import("@capacitor/push-notifications");
             const tapH2 = await PushNotifications.addListener(
               "pushNotificationActionPerformed",
               (action) => {
-                const url = action.notification?.data?.relatedUrl;
-                if (url) goTo(url);
+                handleNotifAction(
+                  action.actionId,
+                  action.inputValue,
+                  action.notification?.data as Record<string, string> | undefined
+                );
               }
             );
             cleanups.push(() => tapH2.remove());
@@ -221,19 +259,14 @@ export default function NativeBridge() {
           }
 
           let perm = await FirebaseMessaging.checkPermissions();
-          console.log("[iospush] checkPermissions", perm.receive);
-          if (perm.receive !== "granted") {
-            perm = await FirebaseMessaging.requestPermissions();
-            console.log("[iospush] requestPermissions", perm.receive);
-          }
+          if (perm.receive !== "granted") perm = await FirebaseMessaging.requestPermissions();
           granted = perm.receive === "granted";
           if (granted) {
             try {
               const { token } = await FirebaseMessaging.getToken();
-              console.log("[iospush] getToken", token ? token.slice(0, 16) + "…" : "null");
               await applyToken(token);
-            } catch (err) {
-              console.error("[iospush] getToken error", err);
+            } catch {
+              /* APNs henuz hazir degil -> tokenReceived / resume'da uygulanir */
             }
           }
         } else {
@@ -272,7 +305,7 @@ export default function NativeBridge() {
         });
         cleanups.push(() => resumeHandle.remove());
       } catch (e) {
-        console.error("[iospush] push setup error", e);
+        console.error("[push] kurulum hatasi", e);
       }
 
       // --- Pil optimizasyonu muafiyeti (Android): arka planda push güvenilirliği ---
