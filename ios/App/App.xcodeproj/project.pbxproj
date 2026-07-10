@@ -16,6 +16,8 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		D149039F2FFF9FBC00196F22 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D149039E2FFF9FBC00196F22 /* GoogleService-Info.plist */; };
+		D1A9C4EF300100AA003A7913 /* CallKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A9C4EE300100AA003A7913 /* CallKitManager.swift */; };
+		D1A9C4F1300100B6003A7913 /* CallKitVoipPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A9C4F0300100B6003A7913 /* CallKitVoipPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +33,8 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		D149039E2FFF9FBC00196F22 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		D14903A02FFF9FF900196F22 /* Uzaktan Şantiye.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Uzaktan Şantiye.entitlements"; sourceTree = "<group>"; };
+		D1A9C4EE300100AA003A7913 /* CallKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitManager.swift; sourceTree = "<group>"; };
+		D1A9C4F0300100B6003A7913 /* CallKitVoipPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitVoipPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +70,8 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				D1A9C4F0300100B6003A7913 /* CallKitVoipPlugin.swift */,
+				D1A9C4EE300100AA003A7913 /* CallKitManager.swift */,
 				D149039E2FFF9FBC00196F22 /* GoogleService-Info.plist */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -119,7 +125,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "Uzaktan Şantiye" */;
+			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */;
 			compatibilityVersion = "Xcode 8.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -162,7 +168,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D1A9C4EF300100AA003A7913 /* CallKitManager.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				D1A9C4F1300100B6003A7913 /* CallKitVoipPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,7 +368,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "Uzaktan Şantiye" */ = {
+		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				504EC3141FED79650016851F /* Debug */,
