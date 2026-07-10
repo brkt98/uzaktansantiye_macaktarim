@@ -33,7 +33,10 @@ final class CallKitManager: NSObject {
     private override init() {
         let cfg = CXProviderConfiguration()
         cfg.supportsVideo = true
-        cfg.maximumCallsPerCallGroup = 1
+        // İptal push'unda "report-then-end" görünmez çağrı, asıl çağrı hâlâ aktifken de
+        // report edilebilsin diye 2 (asıl kullanım yine 1:1). max=1 olsaydı iptalde 2. report
+        // reddedilir, PushKit sözleşmesi ihlal olurdu (bkz. didReceiveIncomingPushWith call_cancel).
+        cfg.maximumCallsPerCallGroup = 2
         cfg.maximumCallGroups = 1
         cfg.supportedHandleTypes = [.generic]
         provider = CXProvider(configuration: cfg)
@@ -103,9 +106,28 @@ extension CallKitManager: PKPushRegistryDelegate {
         let kind = (d["type"] as? String) ?? "call"
 
         if kind == "call_cancel" {
-            // Arayan iptal etti → çalan ekranı kapat. (Yine de completion çağrılmalı.)
-            endCurrentCall(reason: .remoteEnded)
-            completion()
+            // Arayan iptal etti. iOS 13+ PushKit SÖZLEŞMESİ: alınan HER VoIP push,
+            // completion'dan önce SENKRON bir reportNewIncomingCall çağırmalı — yoksa
+            // sistem uygulamayı ÖLDÜRÜR ve tekrarlarda TÜM VoIP teslimini kısıtlar.
+            // Kaçınılmaz Recents kaydı boş "hayalet" olmasın diye asıl çağrının adını al.
+            let name = (currentData["callerName"] as? String) ?? "Arama"
+            // (1) Zaten çalan asıl çağrıyı bitir → çalma durur.
+            if let existing = currentUUID {
+                provider.reportCall(with: existing, endedAt: Date(), reason: .remoteEnded)
+            }
+            currentUUID = nil
+            currentData = [:]
+            // (2) Sözleşme gereği bu push için de görünmez bir çağrı report et; ANINDA bitir
+            //     (max=2 → reddedilmez). completion() ANCAK bitirme TAMAMLANDIKTAN sonra
+            //     çağrılır (bitirme bloğunun içinde) — yoksa suspend penceresinde takılı-çalan
+            //     placeholder + boş "Kabul" riski olurdu.
+            let cancelUUID = UUID()
+            let placeholder = CXCallUpdate()
+            placeholder.remoteHandle = CXHandle(type: .generic, value: name)
+            provider.reportNewIncomingCall(with: cancelUUID, update: placeholder) { [weak self] _ in
+                self?.provider.reportCall(with: cancelUUID, endedAt: Date(), reason: .remoteEnded)
+                completion()
+            }
             return
         }
 
