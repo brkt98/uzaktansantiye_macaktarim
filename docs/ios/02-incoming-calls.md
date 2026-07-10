@@ -23,7 +23,8 @@ iOS 13+: `pushRegistry(_:didReceiveIncomingPushWith:)` içinde gelen HER VoIP pu
 - `PKPushRegistry` (.voip): VoIP token'ı al (`didUpdate pushCredentials`) → JS'e ver; `didReceiveIncomingPushWith` → payload'ı parse et → **`reportNewIncomingCall`** (çalan ekran) → completion.
 - `CXProvider` + `CXProviderConfiguration` (uygulama adı, ikon, `supportsVideo`, zil sesi) + `CXProviderDelegate`: `CXAnswerCallAction` (kabul), `CXEndCallAction` (reddet/bitir), `didActivate/didDeactivate audioSession`.
 - **Capacitor plugin** (`registerPlugin("CallKitVoip")` deseni): VoIP token'ı JS'e event'ler + `callAnswered{conversationId,callType,relatedUrl}` / `callEnded{conversationId}` event'leri yayar.
-- Test: geçici debug tetikleyiciyle `reportNewIncomingCall` → çalan ekran görünüyor mu.
+- ⚠️ **KRİTİK — local plugin kaydı:** Capacitor 8 iOS'ta plugin kaydı SADECE `ios/App/App/capacitor.config.json` → `packageClassList`'ten yapılır (ObjC runtime taraması YOK, bkz. `@capacitor/ios .../CapacitorBridge.swift:305-334`). `cap sync` bu listeyi yalnızca npm/SPM plugin'lerinden üretir → **local app-target Swift plugin'imizi eklemez.** `CallKitVoipPlugin` (`@objc(CallKitVoipPlugin)` sayesinde ObjC adı birebir bu) elle `packageClassList`'e eklenmeli, yoksa JS'te "not implemented" alır (`window.__testCallRing` set edilmez, `ios-voip` token kaydolmaz). **Her `npx cap sync ios`'tan SONRA bu satırı tekrar ekle.**
+- Test: geçici debug tetikleyiciyle `reportNewIncomingCall` → çalan ekran görünüyor mu (Mac Safari Web Inspector konsolu: `window.__testCallRing("Test Arayan", false)`).
 
 ### Faz 2b — Sunucu: VoIP token + doğrudan-APNs VoIP push *(ben yazarım)*
 - **VoIP token depolama:** `platform="ios-voip"` satırı (şema değişikliği YOK, mevcut upsert'i kullanır). ⚠️ `push.ts:99-100` split filtresi güncellenmeli (şu an `ios` olmayan her şeyi `android` sayıyor → `ios-voip` yanlışlıkla android'e düşerdi).

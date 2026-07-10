@@ -41,6 +41,7 @@
 		}
 	},
 	"packageClassList": [
+		"CallKitVoipPlugin",
 		"FirebaseMessagingPlugin",
 		"AppPlugin",
 		"CAPCameraPlugin",
