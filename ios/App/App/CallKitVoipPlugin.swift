@@ -20,7 +20,11 @@ public class CallKitVoipPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "getVoipToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "endCall", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "testRing", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "testRing", returnType: CAPPluginReturnPromise),
+        // Faz 2c ses yönlendirme (giden app-açık arama + hoparlör toggle)
+        CAPPluginMethod(name: "startCallAudio", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setCallSpeaker", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopCallAudio", returnType: CAPPluginReturnPromise)
     ]
 
     public override func load() {
@@ -50,6 +54,27 @@ public class CallKitVoipPlugin: CAPPlugin, CAPBridgedPlugin {
             callType: video ? "video" : "audio",
             fromUserId: call.getString("fromUserId") ?? ""
         )
+        call.resolve()
+    }
+
+    // MARK: - Ses yönlendirme (Faz 2c) — WKWebView WebRTC + AVAudioSession
+    /// GİDEN app-açık arama: web oda CONNECTED olunca çağrılır (audioRoute.ts callStart).
+    @objc func startCallAudio(_ call: CAPPluginCall) {
+        let speaker = call.getBool("speaker") ?? false
+        DispatchQueue.main.async { CallKitManager.shared.beginAppOpenCallAudio(speaker: speaker) }
+        call.resolve()
+    }
+
+    /// Hoparlör ↔ ahize butonu (web setSinkId desteklemez → native override).
+    @objc func setCallSpeaker(_ call: CAPPluginCall) {
+        let on = call.getBool("on") ?? false
+        DispatchQueue.main.async { CallKitManager.shared.setCallSpeaker(on) }
+        call.resolve()
+    }
+
+    /// Arama bitti / oda disconnect (audioRoute.ts callEnd).
+    @objc func stopCallAudio(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { CallKitManager.shared.endCallAudio() }
         call.resolve()
     }
 

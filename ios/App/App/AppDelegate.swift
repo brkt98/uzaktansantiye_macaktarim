@@ -19,6 +19,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // ki uygulamayı SOĞUK BAŞLATAN VoIP push da yakalansın (Android CallMessagingService
         // + IncomingCallActivity karşılığı — bkz. CallKitManager.swift).
         CallKitManager.shared.setup()
+        // Faz 3 native ses: LiveKit AudioManager'ı CallKit el sıkışması için hazırla
+        // (otomatik AVAudioSession yönetimini KAPAT + motoru kapalı başlat) — kilitli-ekran
+        // sesi + earpiece'in temeli. Sesli aramalar native LiveKit SDK'da akar.
+        LiveKitCallManager.shared.prepareForCallKit()
         return true
     }
 

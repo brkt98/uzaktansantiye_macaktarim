@@ -30,6 +30,13 @@ final class CallKitManager: NSObject {
     // JS hazır olmadan olustu ise beklet, plugin yüklenince gönder
     private var pendingAnswered: [String: Any]?
 
+    // --- Arama sesi yaşam döngüsü (WKWebView WebRTC + CallKit ortak) ---
+    private var wantSpeaker = false                       // web hoparlör toggle durumu
+    private var callAudioActive = false                   // arama sesi aktif mi (override guard)
+    private var routeObserver: NSObjectProtocol?          // WebKit rota ezimini geri alma
+    private var answerAwaitingActivation: [String: Any]?  // cevaplandı, didActivate bekleniyor
+    private var callKitAudioIsNative = false              // aktif çağrı sesli-native (LiveKit SDK) mi
+
     private override init() {
         let cfg = CXProviderConfiguration()
         cfg.supportsVideo = true
@@ -158,27 +165,147 @@ extension CallKitManager: CXProviderDelegate {
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
-        // Kabul → JS'e callAnswered (WebView deep-link'e gidip web arama odasına bağlanır).
-        let data = currentData
-        if plugin != nil {
-            plugin?.emitAnswered(data)
-        } else {
-            pendingAnswered = data // WebView/plugin henüz hazır değil → yüklenince flush
-        }
+        let video = (currentData["callType"] as? String) == "video"
+        // 1) Kategoriyi CEVAPTAN ÖNCE hazırla. setActive YOK — aktivasyonu CallKit yapar.
+        //    (Semptom 2: CallKit'in doğru yüksek-öncelikli "telefon" oturumunu seçebilmesi için.)
+        configureCallAudioSession(video: video)
+        callAudioActive = true
+        wantSpeaker = video                       // video→hoparlör, sesli→ahize (earpiece)
+        // 2) Navigasyon/oda bağlanmasını didActivate'e ERTELE — getUserMedia session HOT olunca
+        //    çalışsın (Semptom 2: kilitli ekranda AUIOClient_StartIO failed sessizliğini önler).
+        answerAwaitingActivation = currentData
         action.fulfill()
+        // 3) Güvenlik ağı: didActivate beklenmedik şekilde gelmezse 1.5 sn sonra yine de ilerle.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.flushAnswerIfPending()
+        }
     }
 
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        // Reddet / bitir → JS'e callEnded (Faz 2c: çalarken reddedilirse /api/call/reject).
-        plugin?.emitEnded(currentData)
+        // Reddet / bitir. currentUUID'yi ÖNCE temizle → LiveKit disconnect içindeki
+        // endCurrentCall re-entrancy yapmasın (aşağıda). Sonra callType'a göre kapat.
+        let data = currentData
+        let wasNativeAudio = callKitAudioIsNative
         currentUUID = nil
         currentData = [:]
+        if wasNativeAudio {
+            // Native sesli: LiveKit odasını kapat (motoru didDeactivate kapatacak).
+            Task { await LiveKitCallManager.shared.disconnect() }
+        } else {
+            endCallAudio() // görüntülü/WKWebView route temizliği
+        }
+        plugin?.emitEnded(data)
         action.fulfill()
     }
 
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
-        // WKWebView WebRTC sesi bu aktif session'da çalar (Faz 2c medya koordinasyonu).
+        // Session artık CallKit tarafından AKTİF (kilit ekranı dahil) ve yüksek öncelikli.
+        callAudioActive = true
+        // SESLİ arama → native LiveKit motoru (kilitli-ses + earpiece'in ASIL çözümü:
+        // CallKit didActivate ile AudioManager.setEngineAvailability(.default) el sıkışması).
+        // GÖRÜNTÜLÜ → mevcut WKWebView route yönetimi (değişmedi).
+        if (currentData["callType"] as? String) == "audio" {
+            callKitAudioIsNative = true
+            LiveKitCallManager.shared.callKitDidActivate()  // motoru AÇ
+            flushAnswerIfPending()                          // → NativeAudioCallRoom → nativeConnect
+            print("[callkit] didActivate — LiveKit ses motoru")
+            return
+        }
+        callKitAudioIsNative = false
+        applyDesiredRoute()          // görüntülü: WKWebView route (audio→ahize/video→hoparlör)
+        startRouteObserver()         // WebKit getUserMedia rotayı ezerse geri al
+        flushAnswerIfPending()       // ARTIK güvenli: web oda bağlansın (getUserMedia)
+        print("[callkit] didActivate — WKWebView ses")
     }
 
-    func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {}
+    func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        if callKitAudioIsNative {
+            callKitAudioIsNative = false
+            LiveKitCallManager.shared.callKitDidDeactivate() // LiveKit motorunu KAPAT
+        } else {
+            endCallAudio()
+        }
+        print("[callkit] didDeactivate")
+    }
+
+    /// Cevaplanan çağrının JS'e iletimini yap (didActivate sonrası veya güvenlik-ağı ile).
+    fileprivate func flushAnswerIfPending() {
+        guard let data = answerAwaitingActivation else { return }
+        answerAwaitingActivation = nil
+        if plugin != nil { plugin?.emitAnswered(data) } else { pendingAnswered = data }
+    }
+}
+
+// MARK: - Arama sesi (AVAudioSession kategori + rota) — WKWebView WebRTC ile ortak
+//
+// MİMARİ: iOS'ta arama sesi %100 WKWebView WebRTC (web LiveKit); native RTCAudioSession YOK.
+// Bu yüzden APP ASLA setActive ÇAĞIRMAZ — aktivasyonu GELEN yolda CallKit, GİDEN (app-açık)
+// yolda WebKit yapar (getUserMedia). App yalnız (a) doğru kategori/mode, (b) çıkış rotasını
+// (earpiece/hoparlör) yönetir; WebKit rotayı ezerse routeChange gözlemiyle yeniden dayatır.
+extension CallKitManager {
+    /// SADECE kategori/mode. .voiceChat = varsayılan çıkış built-in receiver (ahize),
+    /// .videoChat = hoparlör. DİKKAT: .defaultToSpeaker EKLENMEZ (sesi hoparlöre zorlar).
+    fileprivate func configureCallAudioSession(video: Bool) {
+        let s = AVAudioSession.sharedInstance()
+        do {
+            try s.setCategory(.playAndRecord,
+                              mode: video ? .videoChat : .voiceChat,
+                              options: [.allowBluetooth, .allowBluetoothA2DP])
+        } catch {
+            print("[callaudio] setCategory hata: \(error.localizedDescription)")
+        }
+    }
+
+    /// İstenen çıkışı uygula. overrideOutputAudioPort GEÇİCİ → routeChange'te tekrar çağrılır.
+    fileprivate func applyDesiredRoute() {
+        guard callAudioActive else { return }   // session aktif değilken çağrı sessizce başarısız olur
+        do {
+            try AVAudioSession.sharedInstance().overrideOutputAudioPort(wantSpeaker ? .speaker : .none)
+        } catch {
+            print("[callaudio] override hata: \(error.localizedDescription)")
+        }
+    }
+
+    /// WebKit getUserMedia rotayı hoparlöre kaçırırsa istenen çıkışı YENİDEN dayat.
+    fileprivate func startRouteObserver() {
+        guard routeObserver == nil else { return }
+        routeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self = self, self.callAudioActive else { return }
+            let outs = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portType }
+            let onSpeaker = outs.contains(.builtInSpeaker)
+            if onSpeaker != self.wantSpeaker { self.applyDesiredRoute() }
+        }
+    }
+
+    fileprivate func stopRouteObserver() {
+        if let o = routeObserver { NotificationCenter.default.removeObserver(o); routeObserver = nil }
+    }
+
+    /// GİDEN (app-açık) arama: JS callStart → burada. CallKit YOK; aktivasyonu WebKit yapar.
+    /// setActive ÇAĞIRMAYIZ → 561015905 (AUIOClient_StartIO) riski yok.
+    func beginAppOpenCallAudio(speaker: Bool) {
+        callAudioActive = true
+        wantSpeaker = speaker
+        configureCallAudioSession(video: speaker) // sesli→ahize, görüntülü→hoparlör
+        applyDesiredRoute()                        // WebKit henüz aktive etmediyse observer tekrar uygular
+        startRouteObserver()
+    }
+
+    /// Hoparlör/ahize butonu (web setSinkId desteklemez → tek yol native override).
+    func setCallSpeaker(_ on: Bool) {
+        wantSpeaker = on
+        applyDesiredRoute()
+    }
+
+    /// Arama bitti (web oda disconnect / CallKit end). Idempotent.
+    func endCallAudio() {
+        stopRouteObserver()
+        if callAudioActive {
+            try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+        }
+        callAudioActive = false
+        wantSpeaker = false
+    }
 }
