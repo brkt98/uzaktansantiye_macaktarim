@@ -22,6 +22,12 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- İhracat uyumu: app yalnızca iOS'un standart/muaf şifrelemesini (HTTPS/TLS, APNs,
+	     WKWebView WebRTC) kullanır; kendi proprietary/ek şifreleme algoritmasını IMPLEMENT ETMEZ
+	     (ES256 JWT imzalama sunucuda) → muaf. Bu anahtar App Store Connect'in her yüklemede
+	     "App Encryption Documentation" sormasını engeller. Muaf-dışı şifreleme eklenirse true yapılmalı. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
