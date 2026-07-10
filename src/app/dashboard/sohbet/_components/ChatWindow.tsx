@@ -74,47 +74,59 @@ export default function ChatWindow({
   const scrollToEnd = () =>
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 
-  // iOS telefon tam-ekran sohbetinde klavye deneyimi:
-  //  - Sorun: varsayilan native resize WebView cercevesini kucultup TUM sayfayi
-  //    reflow ediyor → jank/donma; ayrica scroll pozisyonu "en alt"ta kalmiyordu.
-  //  - Cozum: SOHBETTE klavye modunu "none" yap (WebView kuculmez → reflow/jank yok),
-  //    chat kokunu visualViewport.height'e bagla (klavye ustune purussuzce otur —
-  //    visualViewport klavye animasyonu boyunca surekli guncellenir) ve her
-  //    degisimde mesaj listesini EN ALTA sabitle. Cikista mod "native"e geri doner
-  //    (diger formlar etkilenmez).
+  // iOS telefon tam-ekran sohbetinde klavye:
+  //  - Sorun: varsayilan native resize TUM WebView'i reflow ediyor (jank/donma).
+  //  - Cozum: klavye modunu "none" yap (WebView kuculmez -> reflow yok) ve chat
+  //    kokunun yuksekligini klavyenin KESIN yuksekligine gore ayarla:
+  //    keyboardWillShow event'i `keyboardHeight` verir -> height = calc(100dvh - kb),
+  //    CSS transition ile purussuz animasyon; input her zaman klavyenin hemen ustunde
+  //    kalir + liste en alta sabitlenir. Cikista mod "native"e doner (formlar etkilenmez).
+  //    (Not: visualViewport resize:none'da guvenilir kuculmuyordu -> input gizleniyordu;
+  //    plugin'in bildirdigi kesin klavye yuksekligi kullaniliyor.)
   useEffect(() => {
     if (isTablet) return; // yalniz telefon tam-ekran sohbeti
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return;
-    let kb: { setResizeMode: (o: { mode: unknown }) => Promise<void> } | undefined;
-    const apply = () => {
-      if (rootRef.current) rootRef.current.style.height = `${vv.height}px`;
+    let showH: { remove: () => void } | undefined;
+    let hideH: { remove: () => void } | undefined;
+    let kbApi: { setResizeMode: (o: { mode: unknown }) => Promise<void> } | undefined;
+    const pin = () => {
       const el = listRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     };
+    const pinSoon = () => { pin(); requestAnimationFrame(pin); setTimeout(pin, 280); };
     (async () => {
       try {
         const { Capacitor } = await import("@capacitor/core");
         if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
         const { Keyboard, KeyboardResize } = await import("@capacitor/keyboard");
         await Keyboard.setResizeMode({ mode: KeyboardResize.None });
-        kb = Keyboard as unknown as { setResizeMode: (o: { mode: unknown }) => Promise<void> };
-        vv.addEventListener("resize", apply);
-        vv.addEventListener("scroll", apply);
-        apply();
+        kbApi = Keyboard as unknown as { setResizeMode: (o: { mode: unknown }) => Promise<void> };
+        if (rootRef.current) rootRef.current.style.transition = "height 0.25s ease-out";
+        showH = await Keyboard.addListener("keyboardWillShow", (info) => {
+          if (rootRef.current) {
+            rootRef.current.style.height = `calc(100dvh - ${info.keyboardHeight}px)`;
+          }
+          pinSoon();
+        });
+        hideH = await Keyboard.addListener("keyboardWillHide", () => {
+          if (rootRef.current) rootRef.current.style.height = "";
+          pinSoon();
+        });
       } catch {
-        /* keyboard eklentisi yok → native resize'a birak */
+        /* keyboard eklentisi yok -> native resize'a birak */
       }
     })();
     return () => {
-      vv.removeEventListener("resize", apply);
-      vv.removeEventListener("scroll", apply);
-      if (rootRef.current) rootRef.current.style.height = "";
-      if (kb) {
+      showH?.remove();
+      hideH?.remove();
+      if (rootRef.current) {
+        rootRef.current.style.height = "";
+        rootRef.current.style.transition = "";
+      }
+      if (kbApi) {
         (async () => {
           try {
             const { KeyboardResize } = await import("@capacitor/keyboard");
-            await kb!.setResizeMode({ mode: KeyboardResize.Native });
+            await kbApi!.setResizeMode({ mode: KeyboardResize.Native });
           } catch { /* yoksay */ }
         })();
       }

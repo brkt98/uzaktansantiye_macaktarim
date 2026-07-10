@@ -96,8 +96,10 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   });
   if (tokens.length === 0) return;
 
-  const androidTokens = tokens.filter((t) => t.platform !== "ios").map((t) => t.token);
+  const androidTokens = tokens.filter((t) => t.platform === "android").map((t) => t.token);
   const iosTokens = tokens.filter((t) => t.platform === "ios").map((t) => t.token);
+  // NOT: platform "ios-voip" (PushKit VoIP token) FCM'e gönderilmez — gelen arama
+  // için doğrudan APNs VoIP push ile kullanılır (Faz 2b: src/lib/apnsVoip.ts).
 
   const stale: string[] = [];
   const collectStale = (

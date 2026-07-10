@@ -15,6 +15,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // notificationActionPerformed (actionId REPLY/MARK_READ + inputValue)
         // event'i olarak düşer ve NativeBridge.tsx işler.
         registerChatNotificationCategories()
+        // Faz 2 gelen arama: PushKit(VoIP token) + CallKit(çalan ekran) erken kurulmalı
+        // ki uygulamayı SOĞUK BAŞLATAN VoIP push da yakalansın (Android CallMessagingService
+        // + IncomingCallActivity karşılığı — bkz. CallKitManager.swift).
+        CallKitManager.shared.setup()
         return true
     }
 

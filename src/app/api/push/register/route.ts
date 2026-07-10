@@ -15,7 +15,11 @@ export async function POST(request: NextRequest) {
     if (!token || typeof token !== "string") {
       return NextResponse.json({ error: "token gerekli" }, { status: 400 });
     }
-    const plat = platform === "ios" || platform === "android" ? platform : "android";
+    // "ios-voip" = PushKit VoIP token (gelen arama); FCM'e DEĞİL, doğrudan APNs'e gider.
+    const plat =
+      platform === "ios" || platform === "android" || platform === "ios-voip"
+        ? platform
+        : "android";
 
     await prisma.deviceToken.upsert({
       where: { token },

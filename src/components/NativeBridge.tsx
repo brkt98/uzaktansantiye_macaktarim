@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { backStackPop } from "@/lib/backStack";
+import { setupCallKitVoip } from "@/lib/callKitVoip";
 
 /**
  * NativeBridge — Capacitor native kabuğu ile web uygulaması arasındaki köprü.
@@ -307,6 +308,20 @@ export default function NativeBridge() {
       } catch (e) {
         console.error("[push] kurulum hatasi", e);
       }
+
+      // --- iOS gelen arama (CallKit + PushKit köprüsü) ---
+      // Native çalan ekran (CallKitManager.swift) → JS. Kabul edilince mevcut web
+      // arama odasına deep-link atarız (Android IncomingCallActivity.accept ile aynı).
+      const callKitCleanup = setupCallKitVoip({
+        onAnswered: (d) => {
+          const url = d.relatedUrl || "/dashboard/sohbet";
+          goTo(url.includes("?") ? `${url}&accept=1` : `${url}?accept=1`);
+        },
+        onEnded: () => {
+          // Faz 2c: çalarken reddedilirse /api/call/reject; şimdilik ek işlem yok.
+        },
+      });
+      cleanups.push(callKitCleanup);
 
       // --- Pil optimizasyonu muafiyeti (Android): arka planda push güvenilirliği ---
       try {
