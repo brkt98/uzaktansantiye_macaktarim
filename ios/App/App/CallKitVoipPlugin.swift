@@ -24,7 +24,9 @@ public class CallKitVoipPlugin: CAPPlugin, CAPBridgedPlugin {
         // Faz 2c ses yönlendirme (giden app-açık arama + hoparlör toggle)
         CAPPluginMethod(name: "startCallAudio", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setCallSpeaker", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "stopCallAudio", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "stopCallAudio", returnType: CAPPluginReturnPromise),
+        // GİDEN aramayı CallKit'e kaydet (yeşil gösterge + native proximity)
+        CAPPluginMethod(name: "startOutgoingCall", returnType: CAPPluginReturnPromise)
     ]
 
     public override func load() {
@@ -54,6 +56,21 @@ public class CallKitVoipPlugin: CAPPlugin, CAPBridgedPlugin {
             callType: video ? "video" : "audio",
             fromUserId: call.getString("fromUserId") ?? ""
         )
+        call.resolve()
+    }
+
+    /// GİDEN native sesli aramayı CallKit'e kaydet (yeşil gösterge + native proximity).
+    /// NativeAudioCallRoom (iOS caller) mount'ta nativeConnect yerine bunu çağırır; bağlanma
+    /// native tarafta didActivate'e ertelenir.
+    @objc func startOutgoingCall(_ call: CAPPluginCall) {
+        guard let token = call.getString("token"), let url = call.getString("url") else {
+            call.reject("token/url gerekli")
+            return
+        }
+        let name = call.getString("calleeName") ?? "Arama"
+        DispatchQueue.main.async {
+            CallKitManager.shared.startOutgoingCall(calleeName: name, token: token, url: url)
+        }
         call.resolve()
     }
 

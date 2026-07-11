@@ -65,6 +65,8 @@ final class LiveKitCallManager: NSObject {
                 "identity": first.identity?.stringValue ?? "",
                 "name": first.name ?? "",
             ])
+            // GİDEN arama: karşı taraf ZATEN odadaysa CallKit'e "bağlandı" bildir (guard: yalnız giden).
+            await MainActor.run { CallKitManager.shared.reportOutgoingConnected() }
         }
         plugin?.emit("connected", [:])
     }
@@ -139,6 +141,8 @@ extension LiveKitCallManager: RoomDelegate {
             "identity": participant.identity?.stringValue ?? "",
             "name": participant.name ?? "",
         ])
+        // GİDEN arama: karşı taraf katıldı → CallKit'e "bağlandı" (aranıyor→süreli arama). Guard: yalnız giden.
+        Task { await MainActor.run { CallKitManager.shared.reportOutgoingConnected() } }
     }
 
     func room(_ room: Room, participantDidDisconnect participant: RemoteParticipant) {
