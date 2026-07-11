@@ -147,6 +147,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <!-- VIBRATE haptics eklentisinden gelir; çalan ekran titreşimi için açıkça da bildiriyoruz -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Yakınlık sensörü ile ekran söndürme (sesli aramada kulağa tutunca) — PROXIMITY_SCREEN_OFF_WAKE_LOCK -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

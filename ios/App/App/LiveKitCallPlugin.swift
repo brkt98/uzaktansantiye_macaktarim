@@ -1,5 +1,6 @@
 import Foundation
 import Capacitor
+import UIKit
 
 /// Native LiveKit sesli arama köprüsü — Android `LiveKitCallPlugin.kt`'nin iOS eşi.
 /// JS tarafı: src/lib/liveKitCall.ts (`registerPlugin("LiveKitCall")`).
@@ -21,6 +22,8 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setMicrophoneEnabled", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setSpeaker", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise),
+        // Yakınlık sensörü (sesli aramada ahize modunda kulağa tutunca ekran söner)
+        CAPPluginMethod(name: "setProximity", returnType: CAPPluginReturnPromise),
         // iOS ekran paylaşımı ReplayKit/Broadcast Extension ister (ayrı workstream) → şimdilik stub.
         CAPPluginMethod(name: "startScreenShare", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopScreenShare", returnType: CAPPluginReturnPromise),
@@ -81,6 +84,14 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
             await LiveKitCallManager.shared.disconnect()
             call.resolve()
         }
+    }
+
+    /// Yakınlık sensörü: on=true iken kulağa tutunca iOS ekranı otomatik söndürür (kilitlemeden,
+    /// kulakla yanlış dokunuşları engeller), uzaklaştırınca açar. Sesli aramada ahize modunda açılır.
+    @objc func setProximity(_ call: CAPPluginCall) {
+        let on = call.getBool("on") ?? false
+        DispatchQueue.main.async { UIDevice.current.isProximityMonitoringEnabled = on }
+        call.resolve()
     }
 
     // iOS ekran paylaşımı KAPSAM DIŞI (ReplayKit gerekir) — sözleşme korunur, no-op.

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.PowerManager
 import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -58,6 +59,8 @@ class LiveKitCallPlugin : Plugin() {
     private var room: Room? = null
     private var eventsJob: Job? = null
     private var micServiceStarted = false
+    // Yakınlık sensörü (sesli aramada ahize modunda kulağa tutunca ekran söner) wake lock'u.
+    private var proximityWakeLock: PowerManager.WakeLock? = null
 
     // ===== EKRAN PAYLAŞIMI (additive) — ana sesli/görüntülü aramadan BAĞIMSIZ ayrı Room =====
     // Görüntülü aramada ana bağlantı WebView'dedir (identity=user.id). Ekran track'i AYRI
@@ -222,6 +225,45 @@ class LiveKitCallPlugin : Plugin() {
         }
     }
 
+    /**
+     * Yakınlık sensörü: sesli aramada AHİZE modunda kulağa tutunca ekranı SÖNDÜR
+     * (PROXIMITY_SCREEN_OFF_WAKE_LOCK), kulaktan uzaklaştırınca aç. Ekranı KİLİTLEMEZ; yalnız
+     * kulakla yanlış dokunuşları engeller. NativeAudioCallRoom (hoparlör kapalı iken on=true,
+     * hoparlör açık/arama bitince on=false) çağırır.
+     */
+    @PluginMethod
+    fun setProximity(call: PluginCall) {
+        val on = call.getBoolean("on", false) ?: false
+        try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (on) {
+                if (!pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                    call.resolve(); return // cihaz desteklemiyor → sessizce geç
+                }
+                if (proximityWakeLock == null) {
+                    proximityWakeLock = pm.newWakeLock(
+                        PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                        "uzaktansantiye:call-proximity"
+                    )
+                }
+                if (proximityWakeLock?.isHeld != true) {
+                    proximityWakeLock?.acquire(60 * 60 * 1000L) // en fazla 1 saat güvenlik süresi
+                }
+            } else {
+                releaseProximity()
+            }
+            call.resolve()
+        } catch (e: Throwable) {
+            call.reject("Yakınlık sensörü ayarlanamadı: ${e.message}")
+        }
+    }
+
+    private fun releaseProximity() {
+        try {
+            if (proximityWakeLock?.isHeld == true) proximityWakeLock?.release()
+        } catch (_: Throwable) {}
+    }
+
     // ====================== EKRAN PAYLAŞIMI (additive) ======================
 
     /**
@@ -340,6 +382,7 @@ class LiveKitCallPlugin : Plugin() {
             teardownRoom()
             teardownScreenRoom() // varsa ekran paylaşımını da kapat
             stopMicService()
+            releaseProximity() // arama bitti → ekran her zaman açık kalsın
             call.resolve()
         } catch (e: Throwable) {
             call.reject("Kapatılamadı: ${e.message}")
@@ -429,6 +472,7 @@ class LiveKitCallPlugin : Plugin() {
         teardownRoom()
         teardownScreenRoom()
         stopMicService()
+        releaseProximity()
         scope.cancel()
         super.handleOnDestroy()
     }
