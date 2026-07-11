@@ -18,6 +18,9 @@
 		D149039F2FFF9FBC00196F22 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D149039E2FFF9FBC00196F22 /* GoogleService-Info.plist */; };
 		D1A9C4EF300100AA003A7913 /* CallKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A9C4EE300100AA003A7913 /* CallKitManager.swift */; };
 		D1A9C4F1300100B6003A7913 /* CallKitVoipPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A9C4F0300100B6003A7913 /* CallKitVoipPlugin.swift */; };
+		D1AAF5503002D68A003C32D2 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = D1AAF54F3002D68A003C32D2 /* LiveKit */; };
+		D1AAF5533002D9C0003C32D2 /* LiveKitCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF5513002D9C0003C32D2 /* LiveKitCallManager.swift */; };
+		D1AAF5543002D9C0003C32D2 /* LiveKitCallPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF5523002D9C0003C32D2 /* LiveKitCallPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +38,8 @@
 		D14903A02FFF9FF900196F22 /* Uzaktan Şantiye.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Uzaktan Şantiye.entitlements"; sourceTree = "<group>"; };
 		D1A9C4EE300100AA003A7913 /* CallKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitManager.swift; sourceTree = "<group>"; };
 		D1A9C4F0300100B6003A7913 /* CallKitVoipPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitVoipPlugin.swift; sourceTree = "<group>"; };
+		D1AAF5513002D9C0003C32D2 /* LiveKitCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveKitCallManager.swift; sourceTree = "<group>"; };
+		D1AAF5523002D9C0003C32D2 /* LiveKitCallPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveKitCallPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +48,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				D1AAF5503002D68A003C32D2 /* LiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,6 +58,8 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
+				D1AAF5513002D9C0003C32D2 /* LiveKitCallManager.swift */,
+				D1AAF5523002D9C0003C32D2 /* LiveKitCallPlugin.swift */,
 				D14903A02FFF9FF900196F22 /* Uzaktan Şantiye.entitlements */,
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
@@ -103,6 +111,7 @@
 			name = "Uzaktan Şantiye";
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				D1AAF54F3002D68A003C32D2 /* LiveKit */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* Uzaktan Şantiye.app */;
@@ -136,6 +145,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				D1AAF54E3002D68A003C32D2 /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -171,6 +181,8 @@
 				D1A9C4EF300100AA003A7913 /* CallKitManager.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				D1A9C4F1300100B6003A7913 /* CallKitVoipPlugin.swift in Sources */,
+				D1AAF5533002D9C0003C32D2 /* LiveKitCallManager.swift in Sources */,
+				D1AAF5543002D9C0003C32D2 /* LiveKitCallPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,11 +407,27 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		D1AAF54E3002D68A003C32D2 /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.15.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
+		};
+		D1AAF54F3002D68A003C32D2 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1AAF54E3002D68A003C32D2 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
