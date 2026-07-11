@@ -21,6 +21,7 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setMicrophoneEnabled", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setSpeaker", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setProximity", returnType: CAPPluginReturnPromise),
         // iOS ekran paylaşımı ReplayKit/Broadcast Extension ister (ayrı workstream) → şimdilik stub.
         CAPPluginMethod(name: "startScreenShare", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopScreenShare", returnType: CAPPluginReturnPromise),
