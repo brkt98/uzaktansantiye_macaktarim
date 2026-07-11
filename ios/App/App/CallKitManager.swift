@@ -36,6 +36,7 @@ final class CallKitManager: NSObject {
     private var routeObserver: NSObjectProtocol?          // WebKit rota ezimini geri alma
     private var answerAwaitingActivation: [String: Any]?  // cevaplandı, didActivate bekleniyor
     private var callKitAudioIsNative = false              // aktif çağrı sesli-native (LiveKit SDK) mi
+    private var currentCallAnswered = false               // aktif çağrı CEVAPLANDI mı (call_cancel spurious-ring guard)
 
     private override init() {
         let cfg = CXProviderConfiguration()
@@ -93,6 +94,7 @@ final class CallKitManager: NSObject {
         provider.reportCall(with: uuid, endedAt: Date(), reason: reason)
         currentUUID = nil
         currentData = [:]
+        currentCallAnswered = false
     }
 }
 
@@ -113,24 +115,36 @@ extension CallKitManager: PKPushRegistryDelegate {
         let kind = (d["type"] as? String) ?? "call"
 
         if kind == "call_cancel" {
-            // Arayan iptal etti. iOS 13+ PushKit SÖZLEŞMESİ: alınan HER VoIP push,
-            // completion'dan önce SENKRON bir reportNewIncomingCall çağırmalı — yoksa
-            // sistem uygulamayı ÖLDÜRÜR ve tekrarlarda TÜM VoIP teslimini kısıtlar.
-            // Kaçınılmaz Recents kaydı boş "hayalet" olmasın diye asıl çağrının adını al.
-            let name = (currentData["callerName"] as? String) ?? "Arama"
-            // (1) Zaten çalan asıl çağrıyı bitir → çalma durur.
+            // Arayan iptal etti. AMAÇ: ASLA yeni bir "çalma" yaratma. (Arama zaten bittikten/
+            // reddedildikten sonra gelen geç call_cancel'lar, sözleşme placeholder'ı yüzünden
+            // telefonu 1-2 sn kendiliğinden çaldırıyordu.) call_cancel HER ZAMAN canlı app'e
+            // ulaşır (önce 'call' push'u uyandırdı + CallKit çalarken app'i canlı tutar) →
+            // ön planda placeholder GEREKMEZ; watchdog yalnız arka-plan uyandırmasında geçerli.
+            //
+            // (a) Zaten CEVAPLANMIŞ çağrı → iptal spurious (arayan bağlıyken ayrıldı / kabul
+            //     yayını). Hiçbir şey yapma; LiveKit/web akışı aramayı zaten kapatıyor.
+            if currentCallAnswered {
+                completion()
+                return
+            }
+            // (b) Henüz CEVAPLANMAMIŞ ÇALAN çağrı → GERÇEK iptal → çalmayı durdur (placeholder YOK).
             if let existing = currentUUID {
                 provider.reportCall(with: existing, endedAt: Date(), reason: .remoteEnded)
+                currentUUID = nil
+                currentData = [:]
+                completion()
+                return
             }
-            currentUUID = nil
-            currentData = [:]
-            // (2) Sözleşme gereği bu push için de görünmez bir çağrı report et; ANINDA bitir
-            //     (max=2 → reddedilmez). completion() ANCAK bitirme TAMAMLANDIKTAN sonra
-            //     çağrılır (bitirme bloğunun içinde) — yoksa suspend penceresinde takılı-çalan
-            //     placeholder + boş "Kabul" riski olurdu.
+            // (c) Aktif çağrı YOK. App ÖN PLANDA → arama bitmiş, iptal geç kalmış → görünmez
+            //     placeholder GÖSTERME (kendiliğinden çalma olmasın). App ARKA PLANDA/uykuda ise
+            //     ('call' push kaybolmuş olabilir) VoIP watchdog için görünmez placeholder ŞART.
+            if UIApplication.shared.applicationState == .active {
+                completion()
+                return
+            }
             let cancelUUID = UUID()
             let placeholder = CXCallUpdate()
-            placeholder.remoteHandle = CXHandle(type: .generic, value: name)
+            placeholder.remoteHandle = CXHandle(type: .generic, value: "Arama")
             provider.reportNewIncomingCall(with: cancelUUID, update: placeholder) { [weak self] _ in
                 self?.provider.reportCall(with: cancelUUID, endedAt: Date(), reason: .remoteEnded)
                 completion()
@@ -162,6 +176,7 @@ extension CallKitManager: CXProviderDelegate {
     func providerDidReset(_ provider: CXProvider) {
         currentUUID = nil
         currentData = [:]
+        currentCallAnswered = false
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
@@ -170,6 +185,7 @@ extension CallKitManager: CXProviderDelegate {
         //    (Semptom 2: CallKit'in doğru yüksek-öncelikli "telefon" oturumunu seçebilmesi için.)
         configureCallAudioSession(video: video)
         callAudioActive = true
+        currentCallAnswered = true                // call_cancel spurious-ring guard'ı için
         wantSpeaker = video                       // video→hoparlör, sesli→ahize (earpiece)
         // 2) Navigasyon/oda bağlanmasını didActivate'e ERTELE — getUserMedia session HOT olunca
         //    çalışsın (Semptom 2: kilitli ekranda AUIOClient_StartIO failed sessizliğini önler).
@@ -188,6 +204,7 @@ extension CallKitManager: CXProviderDelegate {
         let wasNativeAudio = callKitAudioIsNative
         currentUUID = nil
         currentData = [:]
+        currentCallAnswered = false
         if wasNativeAudio {
             // Native sesli: LiveKit odasını kapat (motoru didDeactivate kapatacak).
             Task { await LiveKitCallManager.shared.disconnect() }
