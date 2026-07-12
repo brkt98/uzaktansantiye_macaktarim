@@ -69,9 +69,14 @@ public class CallKitVoipPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let name = call.getString("calleeName") ?? "Arama"
         DispatchQueue.main.async {
+            // Meşgulse reject → web eski nativeConnect yoluna düşer (sessiz kilitlenme yok).
+            guard !CallKitManager.shared.hasActiveCall else {
+                call.reject("meşgul: aktif çağrı var")
+                return
+            }
             CallKitManager.shared.startOutgoingCall(calleeName: name, token: token, url: url)
+            call.resolve()
         }
-        call.resolve()
     }
 
     // MARK: - Ses yönlendirme (Faz 2c) — WKWebView WebRTC + AVAudioSession

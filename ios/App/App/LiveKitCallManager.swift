@@ -51,6 +51,13 @@ final class LiveKitCallManager: NSObject {
             try? AudioManager.shared.setEngineAvailability(.default)
         }
 
+        // Önceki oda kaldıysa KAPAT (yeniden bağlanma güvenliği — Android teardownRoom eşi;
+        // yoksa eski oda sessizce açık kalıp ghost-mic olabilirdi).
+        if let old = room {
+            await old.disconnect()
+            room = nil
+        }
+
         let r = Room(delegate: self)
         room = r
         hadRemote = false
@@ -65,8 +72,9 @@ final class LiveKitCallManager: NSObject {
                 "identity": first.identity?.stringValue ?? "",
                 "name": first.name ?? "",
             ])
-            // GİDEN arama: karşı taraf ZATEN odadaysa CallKit'e "bağlandı" bildir (guard: yalnız giden).
-            await MainActor.run { CallKitManager.shared.reportOutgoingConnected() }
+            // GİDEN arama: karşı taraf ZATEN odadaysa CallKit'e "bağlandı" + gerçek adı bildir.
+            let peerName = first.name ?? ""
+            await MainActor.run { CallKitManager.shared.reportOutgoingConnected(peerName: peerName) }
         }
         plugin?.emit("connected", [:])
     }
@@ -141,8 +149,9 @@ extension LiveKitCallManager: RoomDelegate {
             "identity": participant.identity?.stringValue ?? "",
             "name": participant.name ?? "",
         ])
-        // GİDEN arama: karşı taraf katıldı → CallKit'e "bağlandı" (aranıyor→süreli arama). Guard: yalnız giden.
-        Task { await MainActor.run { CallKitManager.shared.reportOutgoingConnected() } }
+        // GİDEN arama: karşı taraf katıldı → CallKit'e "bağlandı" + gerçek adı bildir. Guard: yalnız giden.
+        let peerName = participant.name ?? ""
+        Task { await MainActor.run { CallKitManager.shared.reportOutgoingConnected(peerName: peerName) } }
     }
 
     func room(_ room: Room, participantDidDisconnect participant: RemoteParticipant) {

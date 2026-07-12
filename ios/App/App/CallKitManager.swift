@@ -23,6 +23,9 @@ final class CallKitManager: NSObject {
 
     private(set) var voipToken: String?
 
+    /// Aktif bir CallKit çağrısı var mı (giden-arama meşgul kontrolü için).
+    var hasActiveCall: Bool { currentUUID != nil }
+
     // Aktif çağrı (aynı anda 1:1)
     private var currentUUID: UUID?
     private var currentData: [String: Any] = [:]
@@ -76,6 +79,12 @@ final class CallKitManager: NSObject {
 
     /// Çalan ekranı göster (VoIP push'tan veya test tetikleyiciden).
     func reportIncoming(callerName: String, hasVideo: Bool, conversationId: String, relatedUrl: String, callType: String, fromUserId: String) {
+        // Taze çağrı: önceki (giden) çağrının stale state'i sızmasın
+        // (yoksa reportOutgoingConnected yanlış tetiklenir / call_cancel guard'ı şaşar).
+        isOutgoing = false
+        pendingOutgoing = nil
+        outgoingConnectedReported = false
+        currentCallAnswered = false
         let uuid = UUID()
         currentUUID = uuid
         currentData = [
@@ -113,8 +122,15 @@ final class CallKitManager: NSObject {
     /// Mic izni ÖNCE belirlenir (setEngineAvailability notDetermined'da çağıran thread'i bloklar — SDK #815).
     func startOutgoingCall(calleeName: String, token: String, url: String) {
         guard currentUUID == nil else { return } // 1:1 — zaten aktif çağrı varsa yoksay
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] _ in
-            DispatchQueue.main.async { self?.startOutgoingCallInner(calleeName: calleeName, token: token, url: url) }
+        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+            DispatchQueue.main.async {
+                guard granted else {
+                    // Mikrofon izni yok → CallKit'e hiç kaydetme; web UI kapansın.
+                    LiveKitCallManager.shared.plugin?.emit("disconnected", [:])
+                    return
+                }
+                self?.startOutgoingCallInner(calleeName: calleeName, token: token, url: url)
+            }
         }
     }
 
@@ -126,14 +142,35 @@ final class CallKitManager: NSObject {
         currentData = ["callType": "audio", "callerName": calleeName, "token": token, "url": url]
         let action = CXStartCallAction(call: uuid, handle: CXHandle(type: .generic, value: calleeName))
         action.isVideo = false
-        callController.request(CXTransaction(action: action)) { error in
-            if let error = error { print("[callkit] CXStartCallAction hata: \(error.localizedDescription)") }
+        callController.request(CXTransaction(action: action)) { [weak self] error in
+            guard let error = error else { return }
+            print("[callkit] CXStartCallAction hata: \(error.localizedDescription)")
+            // Transaction reddedildi → state'i SIFIRLA (yoksa currentUUID sonsuza kilitli kalır,
+            // sonraki tüm aramalar sessizce düşer) + web'e bildir (UI kapansın).
+            DispatchQueue.main.async {
+                guard let self = self, self.currentUUID == uuid else { return }
+                self.currentUUID = nil
+                self.currentData = [:]
+                self.isOutgoing = false
+                self.pendingOutgoing = nil
+                self.currentCallAnswered = false
+                LiveKitCallManager.shared.plugin?.emit("disconnected", [:])
+            }
         }
     }
 
     /// Karşı taraf odaya katıldı → CallKit'e "bağlandı" bildir (aranıyor→süreli aramaya geç).
-    func reportOutgoingConnected() {
-        guard isOutgoing, let uuid = currentUUID, !outgoingConnectedReported else { return }
+    /// peerName verilirse CallKit çağrısının adını da güncelle ("Arama" placeholder'ı yerine
+    /// gerçek isim — kilit ekranı/Recents doğru görünsün).
+    func reportOutgoingConnected(peerName: String? = nil) {
+        guard isOutgoing, let uuid = currentUUID else { return }
+        if let n = peerName, !n.isEmpty {
+            let update = CXCallUpdate()
+            update.localizedCallerName = n
+            update.remoteHandle = CXHandle(type: .generic, value: n)
+            provider.reportCall(with: uuid, updated: update)
+        }
+        guard !outgoingConnectedReported else { return }
         outgoingConnectedReported = true
         provider.reportOutgoingCall(with: uuid, connectedAt: Date())
     }
@@ -266,6 +303,11 @@ extension CallKitManager: CXProviderDelegate {
         currentUUID = nil
         currentData = [:]
         currentCallAnswered = false
+        // GİDEN state'i de MUTLAKA temizle: yoksa didActivate'ten ÖNCE iptalde 1.5sn
+        // güvenlik-ağı yine de odaya bağlanıp mikrofonu AÇIK bırakırdı (hot-mic).
+        isOutgoing = false
+        pendingOutgoing = nil
+        outgoingConnectedReported = false
         if wasNativeAudio {
             // Native sesli: LiveKit odasını kapat (motoru didDeactivate kapatacak).
             Task { await LiveKitCallManager.shared.disconnect() }
@@ -285,7 +327,7 @@ extension CallKitManager: CXProviderDelegate {
         if (currentData["callType"] as? String) == "audio" {
             callKitAudioIsNative = true
             LiveKitCallManager.shared.callKitDidActivate()  // motoru AÇ (engine .default)
-            if pendingOutgoing != nil {
+            if isOutgoing {
                 flushOutgoingIfPending()  // GİDEN: native connect BURADA (engine hazır)
             } else {
                 flushAnswerIfPending()    // GELEN: web deep-link → nativeConnect (eski davranış)
@@ -320,16 +362,28 @@ extension CallKitManager: CXProviderDelegate {
     /// Ertelenen GİDEN bağlanmayı çalıştır (didActivate sonrası — engine hazır). İdempotent.
     /// callKitDrivingAudio ZATEN true (callKitDidActivate) → connect() setActive/engine ATLAR (çift-aktivasyon yok).
     fileprivate func flushOutgoingIfPending() {
-        guard let data = pendingOutgoing,
-              let url = data["url"] as? String,
-              let token = data["token"] as? String else { return }
-        pendingOutgoing = nil
+        // HOT-MIC GUARD: çağrı bu arada bittiyse (CallKit UI'dan iptal vb.) ASLA bağlanma.
+        guard isOutgoing, currentUUID != nil else {
+            pendingOutgoing = nil
+            return
+        }
+        guard let data = pendingOutgoing else { return }
+        pendingOutgoing = nil // KOŞULSUZ tüket (token/url bozuksa da tekrar denenmesin)
+        guard let url = data["url"] as? String, let token = data["token"] as? String else {
+            endCurrentCall(reason: .failed)
+            LiveKitCallManager.shared.plugin?.emit("disconnected", [:]) // web UI kapansın
+            return
+        }
         Task {
             do {
                 try await LiveKitCallManager.shared.connect(url: url, token: token)
             } catch {
                 print("[callkit] giden connect hata: \(error.localizedDescription)")
-                await MainActor.run { self.endCurrentCall(reason: .failed) }
+                await MainActor.run {
+                    self.endCurrentCall(reason: .failed)
+                    // Web'e bildir — yoksa NativeAudioCallRoom "Bağlanıyor…"da asılı kalır.
+                    LiveKitCallManager.shared.plugin?.emit("disconnected", [:])
+                }
             }
         }
     }
