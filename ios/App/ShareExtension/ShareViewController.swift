@@ -143,15 +143,17 @@ class ShareViewController: UIViewController {
         }
     }
 
-    /// Ana uygulamayı aç (responder zinciri üzerinden openURL — extension'da standart teknik).
-    /// Başarısız olursa paylaşım container'da kalır; app bir sonraki açılışta yakalar.
+    /// Ana uygulamayı aç. Eski perform("openURL:") hilesi iOS 18+'da Apple tarafından ZORLA
+    /// false döndürülüyor (UIKit konsol: "Force returning false") → doğrulanmış güncel teknik
+    /// (Bluesky üretim kodu + receive_sharing_intent iOS-18 dalı; iOS 15-26 doğrulamalı):
+    /// responder zincirinde UIApplication'ı CAST ile bulup MODERN open(_:options:) çağırmak.
+    /// Yine de başarısız olursa paylaşım container'da kalır; app açılınca yakalanır (graceful).
     private func openHostApp() {
         guard let url = URL(string: "\(hostScheme)://share") else { return }
-        let selector = sel_registerName("openURL:")
         var responder: UIResponder? = self
         while let r = responder {
-            if r.responds(to: selector), r !== self {
-                _ = r.perform(selector, with: url)
+            if let application = r as? UIApplication {
+                application.open(url, options: [:], completionHandler: nil)
                 return
             }
             responder = r.next
