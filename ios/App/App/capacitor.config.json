@@ -43,6 +43,7 @@
 	"packageClassList": [
 		"CallKitVoipPlugin",
 		"LiveKitCallPlugin",
+		"BiometricPlugin",
 		"FirebaseMessagingPlugin",
 		"AppPlugin",
 		"CAPCameraPlugin",

@@ -77,5 +77,7 @@
 	<string>Belge ve fotoğraf yüklemek için galeri erişimi gereklidir.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>İndirilen dosyaları cihazınıza kaydetmek için izin gereklidir.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Uygulama kilidini Face ID ile açmak için kullanılır.</string>
 </dict>
 </plist>
