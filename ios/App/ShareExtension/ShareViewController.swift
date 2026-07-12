@@ -1,12 +1,6 @@
 // ShareExtension/ShareViewController.swift — TARGET: YALNIZ ShareExtension (ana App'e EKLEME).
-// iOS paylaşım hedefi giriş noktası — Android ShareTargetPlugin.java'nın "intent yakalama" kısmının eşi.
-// Paylaşılan dosya/metinleri App Group container'ına (shares/<id>/ + manifest.json) yazar, sonra
-// ana uygulamayı `uzaktansantiye://share` ile açar. base64 dönüşümü ANA APP'te (ShareTargetPlugin)
-// yapılır — extension yalnız kopyalar (extension bellek limiti ~120MB; büyük dosyada base64 patlardı).
-//
-// Extension WKWebView/ağ ÇALIŞTIRMAZ; sohbet seçimi ana app'teki /dashboard/sohbet/paylas'ta yapılır.
-// openURL başarısız olsa bile paylaşım container'da kalır → kullanıcı app'i açınca plugin yakalar
-// (didBecomeActive) — yani graceful degrade.
+// Paylaşılan dosya/metinleri App Group container'ına yazar, ana uygulamayı
+// uzaktansantiye://share ile açar. base64 dönüşümü ANA APP'te yapılır (bellek limiti).
 
 import UIKit
 import UniformTypeIdentifiers
@@ -14,12 +8,12 @@ import UniformTypeIdentifiers
 class ShareViewController: UIViewController {
 
     private let appGroupId = "group.com.mesalegrup.uzaktansantiye"
-    private let hostScheme = "uzaktansantiye" // uzaktansantiye://share
+    private let hostScheme = "uzaktansantiye"
     private let maxBytes = 25 * 1024 * 1024   // Android MAX_BYTES ile birebir (25MB)
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.18, alpha: 1) // #1a1a2e
+        view.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.18, alpha: 1)
 
         let label = UILabel()
         label.text = "Aktarılıyor…"
@@ -41,7 +35,6 @@ class ShareViewController: UIViewController {
         guard let container = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else { return finish() }
 
-        // Yeni benzersiz id (extension + app AYRI süreç → sayaç paylaşımlı UserDefaults'ta).
         let defaults = UserDefaults(suiteName: appGroupId)
         let id = (defaults?.integer(forKey: "shareCounter") ?? 0) + 1
         defaults?.set(id, forKey: "shareCounter")
@@ -53,13 +46,12 @@ class ShareViewController: UIViewController {
         var texts: [String] = []
         var fileIndex = 0
         let group = DispatchGroup()
-        let lock = NSLock() // completion handler'lar farklı thread'lerde → dizileri koru
+        let lock = NSLock()
 
         let providers = (extensionContext?.inputItems as? [NSExtensionItem])?
             .flatMap { $0.attachments ?? [] } ?? []
 
         for provider in providers {
-            // 1) DOSYA (görsel/video/pdf/genel data) — file-representation ile temp URL alıp kopyala.
             if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier)
                 || provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier)
                 || provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
@@ -90,7 +82,6 @@ class ShareViewController: UIViewController {
                         "mimeType": mime,
                         "size": size ?? -1,
                     ]
-                    // 25MB eşiği: büyük dosyayı KOPYALAMA (Android tooLarge davranışı).
                     if let s = size, s > self.maxBytes {
                         entry["tooLarge"] = true
                     } else {
@@ -100,14 +91,12 @@ class ShareViewController: UIViewController {
                             entry["tooLarge"] = false
                             entry["file"] = destName
                         } catch {
-                            return // kopyalanamadı → düş
+                            return
                         }
                     }
                     lock.lock(); fileEntries.append(entry); lock.unlock()
                 }
-            }
-            // 2) METİN
-            else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 group.enter()
                 provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) { item, _ in
                     defer { group.leave() }
@@ -115,9 +104,7 @@ class ShareViewController: UIViewController {
                         lock.lock(); texts.append(s); lock.unlock()
                     }
                 }
-            }
-            // 3) URL (web sayfası paylaşımı) → metin olarak
-            else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                 group.enter()
                 provider.loadItem(forTypeIdentifier: UTType.url.identifier) { item, _ in
                     defer { group.leave() }
@@ -136,27 +123,31 @@ class ShareViewController: UIViewController {
             let manifest: [String: Any] = ["id": id, "files": fileEntries, "texts": texts]
             if let data = try? JSONSerialization.data(withJSONObject: manifest) {
                 try? data.write(to: dir.appendingPathComponent("manifest.json"))
-                defaults?.set(id, forKey: "pendingShareId") // ana app'e "tüketilecek paylaşım var"
+                defaults?.set(id, forKey: "pendingShareId")
             }
             self.openHostApp()
             self.finish()
         }
     }
 
-    /// Ana uygulamayı aç (responder zinciri üzerinden openURL — extension'da standart teknik).
-    /// Başarısız olursa paylaşım container'da kalır; app bir sonraki açılışta yakalar.
-    private func openHostApp() {
-        guard let url = URL(string: "\(hostScheme)://share") else { return }
-        let selector = sel_registerName("openURL:")
-        var responder: UIResponder? = self
-        while let r = responder {
-            if r.responds(to: selector), r !== self {
-                _ = r.perform(selector, with: url)
-                return
+    /// Ana uygulamayı aç (responder zinciri openURL — extension'da standart teknik).
+    /// Başarısız olursa paylaşım container'da kalır; app açılınca yakalanır.
+    /// Ana uygulamayı aç. Eski perform("openURL:") hilesi iOS 18+'da Apple tarafından ZORLA
+        /// false döndürülüyor (UIKit konsol: "Force returning false") → doğrulanmış güncel teknik
+        /// (Bluesky üretim kodu + receive_sharing_intent iOS-18 dalı; iOS 15-26 doğrulamalı):
+        /// responder zincirinde UIApplication'ı CAST ile bulup MODERN open(_:options:) çağırmak.
+        /// Yine de başarısız olursa paylaşım container'da kalır; app açılınca yakalanır (graceful).
+        private func openHostApp() {
+            guard let url = URL(string: "\(hostScheme)://share") else { return }
+            var responder: UIResponder? = self
+            while let r = responder {
+                if let application = r as? UIApplication {
+                    application.open(url, options: [:], completionHandler: nil)
+                    return
+                }
+                responder = r.next
             }
-            responder = r.next
         }
-    }
 
     private func finish() {
         extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
