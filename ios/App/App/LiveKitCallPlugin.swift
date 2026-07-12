@@ -89,8 +89,6 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
 
     /// Yakınlık sensörü: on=true iken kulağa tutunca iOS ekranı otomatik söndürür (kilitlemeden,
     /// kulakla yanlış dokunuşları engeller), uzaklaştırınca açar. Sesli aramada ahize modunda açılır.
-    /// ProximityManager: ana-thread + geri-oku/tekrar-dene (erken/aktif-değilken iOS reddeder) +
-    /// didBecomeActive'de yeniden-enable + kulaktayken güvenli-disable.
     @objc func setProximity(_ call: CAPPluginCall) {
         ProximityManager.shared.set(call.getBool("on") ?? false)
         call.resolve()

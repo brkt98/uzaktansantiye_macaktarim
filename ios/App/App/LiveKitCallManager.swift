@@ -11,9 +11,6 @@ import LiveKit
 ///
 /// Kapsam: SADECE sesli arama. Görüntülü aramalar WKWebView LiveKitRoom'da kalır.
 /// CallKit çalan-ekran/PushKit ayrı katman (CallKitManager) — bu sınıf yalnız GÖRÜŞME motoru.
-///
-/// ⚠️ LiveKit Swift SDK (client-sdk-swift 2.15.x) API imzaları Xcode autocomplete ile
-///    DOĞRULANMALI (RoomDelegate metotları, AudioManager, participant.identity sürüm farkı olabilir).
 final class LiveKitCallManager: NSObject {
     static let shared = LiveKitCallManager()
 
@@ -36,9 +33,7 @@ final class LiveKitCallManager: NSObject {
 
     /// AppDelegate.didFinishLaunching'ten çağrılır. LiveKit AudioManager'ın OTOMATİK
     /// AVAudioSession yönetimini KAPAT (CallKit ile el sıkışma için şart) + motoru kapalı başlat.
-    /// (Resmi LiveKit CallKit örneği bu deseni kullanır.)
     func prepareForCallKit() {
-        // ⚠️ Xcode'da doğrula: AudioManager.shared.audioSession (AudioSessionEngineObserver)
         AudioManager.shared.audioSession.isAutomaticConfigurationEnabled = false
         try? AudioManager.shared.setEngineAvailability(.none)
         // Faz 4 (ekran paylaşımı): SDK oto-publish'ini kapat + sistemden-durdurma gözlemcisi.
@@ -56,13 +51,11 @@ final class LiveKitCallManager: NSObject {
         // (callKitDidActivate zaten çağrıldı) atla — çift aktivasyon 561015905 verir.
         if !callKitDrivingAudio {
             configureAudioSession()
-            // ⚠️ Giden yolda oturumu aktive eden CallKit yok → elle aktive (CallKit yolunda ASLA).
             try? AVAudioSession.sharedInstance().setActive(true)
             try? AudioManager.shared.setEngineAvailability(.default)
         }
 
-        // Önceki oda kaldıysa KAPAT (yeniden bağlanma güvenliği — Android teardownRoom eşi;
-        // yoksa eski oda sessizce açık kalıp ghost-mic olabilirdi).
+        // Önceki oda kaldıysa KAPAT (yeniden bağlanma güvenliği).
         if let old = room {
             await old.disconnect()
             room = nil
@@ -76,7 +69,7 @@ final class LiveKitCallManager: NSObject {
 
         // SENTETİK participantConnected: aranan bağlandığında arayan ZATEN odadadır → ona
         // participantDidConnect GELMEZ. Yaymazsak NativeAudioCallRoom "Bağlanıyor…"da asılı kalır.
-        if let first = r.remoteParticipants.values.first { // ⚠️ Xcode: remoteParticipants tipini doğrula
+        if let first = r.remoteParticipants.values.first {
             hadRemote = true
             plugin?.emit("participantConnected", [
                 "identity": first.identity?.stringValue ?? "",
@@ -95,7 +88,7 @@ final class LiveKitCallManager: NSObject {
     }
 
     /// Ahize ↔ hoparlör. CallKit akışında isSpeakerOutputPreferred ETKİSİZ (auto-config kapalı)
-    /// → doğrudan AVAudioSession override (mevcut CallKitManager route tekniğiyle aynı).
+    /// → doğrudan AVAudioSession override.
     func setSpeaker(_ on: Bool) throws {
         try AVAudioSession.sharedInstance().overrideOutputAudioPort(on ? .speaker : .none)
     }
@@ -115,7 +108,6 @@ final class LiveKitCallManager: NSObject {
             try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
         }
         // Web'den kapatıldıysa (gelen aramada) CallKit çağrısı hâlâ aktif olabilir → bitir.
-        // (perform(end)'den gelindiyse currentUUID zaten temizli → no-op; re-entrancy yok.)
         await MainActor.run { CallKitManager.shared.endCurrentCall() }
     }
 
@@ -124,8 +116,7 @@ final class LiveKitCallManager: NSObject {
     // aramanın Room'u YOK. Ekran track'i buradaki AYRI screenRoom'da, AYRI "-screen" identity
     // token'ıyla publish edilir (DUPLICATE_IDENTITY çözümü, Android sözleşmesi).
     // Kare akışı: BroadcastExtension süreci (LKSampleHandler) → App Group unix soketi (rtc_SSFD)
-    // → BU süreçteki BroadcastScreenCapturer → screenRoom publish. Extension WebRTC'ye BAĞLANMAZ
-    // (50MB extension bellek limitine takılmaz).
+    // → BU süreçteki BroadcastScreenCapturer → screenRoom publish. Extension WebRTC'ye BAĞLANMAZ.
 
     /// Yayını başlat. token/url JS'ten gelir (fetchScreenToken; identity zaten "-screen" suffix'li).
     /// Android'le aynı sıra: önce consent (sistem picker'ı), sonra bağlan + publish.
@@ -144,11 +135,10 @@ final class LiveKitCallManager: NSObject {
         }
 
         // 2) AYRI "-screen" Room'a bağlan + publish. MİKROFON BU ODADA ASLA AÇILMAZ,
-        //    ses oturumuna dokunulmaz (Android NoAudioHandler eşdeğeri; appAudio=false).
+        //    ses oturumuna dokunulmaz (appAudio=false).
         do {
-            // ⚠️ Xcode'da doğrula: RoomOptions/ScreenShareCaptureOptions/connect imzaları (2.15.x).
             // Broadcast modunda çözünürlük/fps YALNIZ RoomOptions.defaultScreenShareCaptureOptions'tan
-            // okunur (setScreenShare'e verilen captureOptions YOK SAYILIR — SDK warning loglar).
+            // okunur (setScreenShare'e verilen captureOptions YOK SAYILIR).
             let opts = RoomOptions(
                 defaultScreenShareCaptureOptions: ScreenShareCaptureOptions(
                     dimensions: .h1080_169,
@@ -175,7 +165,7 @@ final class LiveKitCallManager: NSObject {
     func stopScreenShare() async {
         await teardownScreenRoom()
         if BroadcastManager.shared.isBroadcasting {
-            BroadcastManager.shared.requestStop() // Darwin "iOS_BroadcastRequestStop" → extension biter
+            BroadcastManager.shared.requestStop() // Darwin bildirimi → extension biter
         }
         plugin?.emit("screenShareState", ["active": false])
     }
@@ -183,11 +173,10 @@ final class LiveKitCallManager: NSObject {
     /// KRİTİK kurulum: shouldPublishTrack=false → SDK'nın oto-publish'i kapanır (yoksa açık HER
     /// Room — native sesli arama dahil — broadcast başlayınca kendi odasına publish etmeye kalkar;
     /// rtc_SSFD soketi TEK alıcı kabul ettiği için çakışır). Ayrıca sistemden-durdurmayı yakalar:
-    /// kullanıcı yayını status bar kırmızı gösterge / Kontrol Merkezi'nden bitirirse (Android'de
-    /// olmayan yol) screenRoom kapatılır + screenShareState {active:false} yayılır.
+    /// kullanıcı yayını status bar kırmızı gösterge / Kontrol Merkezi'nden bitirirse
+    /// screenRoom kapatılır + screenShareState {active:false} yayılır.
     private func wireBroadcastObserver() {
         guard broadcastSub == nil else { return }
-        // ⚠️ Xcode'da doğrula: BroadcastManager.shared API'leri (2.15.x).
         BroadcastManager.shared.shouldPublishTrack = false
         broadcastSub = BroadcastManager.shared.isBroadcastingPublisher
             .removeDuplicates()
@@ -202,8 +191,8 @@ final class LiveKitCallManager: NSObject {
     }
 
     /// Yayının fiilen başlamasını bekle. Picker İPTALİNDE sinyal GELMEZ → iki emniyet:
-    /// (1) picker kapanınca app yeniden aktif olur → 2.5sn grace sonrası yayın yoksa HIZLI false
-    /// (JS'teki screenBusy kilidi 60sn asılı kalmaz), (2) mutlak zaman aşımı.
+    /// (1) picker kapanınca app yeniden aktif olur → 2.5sn grace sonrası yayın yoksa HIZLI false,
+    /// (2) mutlak zaman aşımı.
     private func waitForBroadcastStart(timeout: TimeInterval) async -> Bool {
         if BroadcastManager.shared.isBroadcasting { return true }
         return await withCheckedContinuation { cont in
@@ -281,7 +270,6 @@ final class LiveKitCallManager: NSObject {
 }
 
 // MARK: - RoomDelegate → JS event köprüsü (Android bridgeEvents birebir eşi)
-// ⚠️ Xcode'da doğrula: RoomDelegate metot imzaları 2.15.x'te değişmiş olabilir.
 extension LiveKitCallManager: RoomDelegate {
     func room(_ room: Room, participantDidConnect participant: RemoteParticipant) {
         hadRemote = true
@@ -289,7 +277,7 @@ extension LiveKitCallManager: RoomDelegate {
             "identity": participant.identity?.stringValue ?? "",
             "name": participant.name ?? "",
         ])
-        // GİDEN arama: karşı taraf katıldı → CallKit'e "bağlandı" + gerçek adı bildir. Guard: yalnız giden.
+        // GİDEN arama: karşı taraf katıldı → CallKit'e "bağlandı" + gerçek adı bildir.
         let peerName = participant.name ?? ""
         Task { await MainActor.run { CallKitManager.shared.reportOutgoingConnected(peerName: peerName) } }
     }
