@@ -24,7 +24,7 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise),
         // Yakınlık sensörü (sesli aramada ahize modunda kulağa tutunca ekran söner)
         CAPPluginMethod(name: "setProximity", returnType: CAPPluginReturnPromise),
-        // iOS ekran paylaşımı ReplayKit/Broadcast Extension ister (ayrı workstream) → şimdilik stub.
+        // Faz 4: gerçek implementasyon (ReplayKit BroadcastExtension + ayrı "-screen" Room)
         CAPPluginMethod(name: "startScreenShare", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopScreenShare", returnType: CAPPluginReturnPromise),
     ]
@@ -37,9 +37,10 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         notifyListeners(name, data: data)
     }
 
-    // getSdkInfo: engine="audio-v1" ZORUNLU → yoksa JS gate (lkAudioEngine) 0 yazar, native path kapalı.
+    // getSdkInfo: engine="audio-v1" ZORUNLU (sesli gate) + screenShare:true → JS SCREEN_FLAG=1
+    // yazar → görüntülü aramada ekran paylaşım butonu görünür (Faz 4).
     @objc func getSdkInfo(_ call: CAPPluginCall) {
-        call.resolve(["engine": "audio-v1", "screenShare": false])
+        call.resolve(["engine": "audio-v1", "screenShare": true])
     }
 
     @objc func connect(_ call: CAPPluginCall) {
@@ -95,13 +96,29 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve()
     }
 
-    // iOS ekran paylaşımı KAPSAM DIŞI (ReplayKit gerekir) — sözleşme korunur, no-op.
+    /// Ekran paylaşımı (Faz 4): AYRI "-screen" Room + ReplayKit Broadcast Extension.
+    /// token/url JS'ten gelir (fetchScreenToken; native token ÜRETMEZ). Başarı = track publish
+    /// EDİLDİKTEN sonra resolve({active:true}); iptal/zaman aşımı/hata = reject (JS state değişmez).
     @objc func startScreenShare(_ call: CAPPluginCall) {
-        call.resolve(["active": false])
+        guard let token = call.getString("token"), let url = call.getString("url") else {
+            call.reject("token/url gerekli")
+            return
+        }
+        Task {
+            do {
+                try await LiveKitCallManager.shared.startScreenShare(url: url, token: token)
+                call.resolve(["active": true])
+            } catch {
+                call.reject("Ekran paylaşımı başlatılamadı: \(error.localizedDescription)")
+            }
+        }
     }
 
     @objc func stopScreenShare(_ call: CAPPluginCall) {
-        call.resolve()
+        Task {
+            await LiveKitCallManager.shared.stopScreenShare()
+            call.resolve()
+        }
     }
 }
 
