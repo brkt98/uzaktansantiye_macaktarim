@@ -27,6 +27,7 @@
 		D1AAF56D3003E5DE003C32D2 /* BiometricPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF56C3003E5DE003C32D2 /* BiometricPlugin.swift */; };
 		D1AAF56F3003E5FA003C32D2 /* ShareTargetPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF56E3003E5FA003C32D2 /* ShareTargetPlugin.swift */; };
 		D1AAF5833003F415003C32D2 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D1AAF5793003F415003C32D2 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D1AAF59E30042B4E003C32D2 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF59D30042B41003C32D2 /* ViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +84,7 @@
 		D1AAF56C3003E5DE003C32D2 /* BiometricPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricPlugin.swift; sourceTree = "<group>"; };
 		D1AAF56E3003E5FA003C32D2 /* ShareTargetPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareTargetPlugin.swift; sourceTree = "<group>"; };
 		D1AAF5793003F415003C32D2 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1AAF59D30042B41003C32D2 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -139,6 +141,7 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
+				D1AAF59D30042B41003C32D2 /* ViewController.swift */,
 				D1AAF56E3003E5FA003C32D2 /* ShareTargetPlugin.swift */,
 				D1AAF56C3003E5DE003C32D2 /* BiometricPlugin.swift */,
 				D1AAF5513002D9C0003C32D2 /* LiveKitCallManager.swift */,
@@ -350,6 +353,7 @@
 				D1AAF56D3003E5DE003C32D2 /* BiometricPlugin.swift in Sources */,
 				D1AAF56F3003E5FA003C32D2 /* ShareTargetPlugin.swift in Sources */,
 				D1AAF5533002D9C0003C32D2 /* LiveKitCallManager.swift in Sources */,
+				D1AAF59E30042B4E003C32D2 /* ViewController.swift in Sources */,
 				D1AAF5543002D9C0003C32D2 /* LiveKitCallPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
