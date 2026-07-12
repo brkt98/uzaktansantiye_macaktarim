@@ -1,8 +1,9 @@
 import Foundation
 import Capacitor
+import UIKit
 
-/// Native LiveKit sesli arama köprüsü — Android `LiveKitCallPlugin.kt`'nin iOS eşi.
-/// JS tarafı: src/lib/liveKitCall.ts (`registerPlugin("LiveKitCall")`).
+/// Native LiveKit sesli arama köprüsü — Android ⁠ LiveKitCallPlugin.kt ⁠'nin iOS eşi.
+/// JS tarafı: src/lib/liveKitCall.ts (⁠ registerPlugin("LiveKitCall") ⁠).
 /// Çekirdek: LiveKitCallManager (LiveKit Swift SDK).
 ///
 /// Sözleşme (Android ile BİREBİR): getSdkInfo/connect/setMicrophoneEnabled/setSpeaker/
@@ -10,7 +11,7 @@ import Capacitor
 /// connected/disconnected/participantConnected/participantDisconnected/connectionState.
 ///
 /// ⚠️ Bu LOCAL app-target plugin → capacitor.config.json packageClassList'e "LiveKitCallPlugin"
-///    EKLENMELİ (CallKitVoipPlugin gibi; her `npx cap sync ios` sonrası korunmalı).
+///    EKLENMELİ (CallKitVoipPlugin gibi; her ⁠ npx cap sync ios ⁠ sonrası korunmalı).
 @objc(LiveKitCallPlugin)
 public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "LiveKitCallPlugin"
@@ -21,8 +22,9 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setMicrophoneEnabled", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setSpeaker", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise),
+        // Yakınlık sensörü (sesli aramada ahize modunda kulağa tutunca ekran söner)
         CAPPluginMethod(name: "setProximity", returnType: CAPPluginReturnPromise),
-        // iOS ekran paylaşımı ReplayKit/Broadcast Extension ister (ayrı workstream) → şimdilik stub.
+        // Faz 4: gerçek implementasyon (ReplayKit BroadcastExtension + ayrı "-screen" Room)
         CAPPluginMethod(name: "startScreenShare", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopScreenShare", returnType: CAPPluginReturnPromise),
     ]
@@ -35,9 +37,10 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         notifyListeners(name, data: data)
     }
 
-    // getSdkInfo: engine="audio-v1" ZORUNLU → yoksa JS gate (lkAudioEngine) 0 yazar, native path kapalı.
+    // getSdkInfo: engine="audio-v1" ZORUNLU (sesli gate) + screenShare:true → JS SCREEN_FLAG=1
+    // yazar → görüntülü aramada ekran paylaşım butonu görünür (Faz 4).
     @objc func getSdkInfo(_ call: CAPPluginCall) {
-        call.resolve(["engine": "audio-v1", "screenShare": false])
+        call.resolve(["engine": "audio-v1", "screenShare": true])
     }
 
     @objc func connect(_ call: CAPPluginCall) {
@@ -84,12 +87,102 @@ public class LiveKitCallPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    // iOS ekran paylaşımı KAPSAM DIŞI (ReplayKit gerekir) — sözleşme korunur, no-op.
+    /// Yakınlık sensörü: on=true iken kulağa tutunca iOS ekranı otomatik söndürür (kilitlemeden,
+    /// kulakla yanlış dokunuşları engeller), uzaklaştırınca açar. Sesli aramada ahize modunda açılır.
+    @objc func setProximity(_ call: CAPPluginCall) {
+        ProximityManager.shared.set(call.getBool("on") ?? false)
+        call.resolve()
+    }
+
+    /// Ekran paylaşımı (Faz 4): AYRI "-screen" Room + ReplayKit Broadcast Extension.
+    /// token/url JS'ten gelir (fetchScreenToken; native token ÜRETMEZ). Başarı = track publish
+    /// EDİLDİKTEN sonra resolve({active:true}); iptal/zaman aşımı/hata = reject (JS state değişmez).
     @objc func startScreenShare(_ call: CAPPluginCall) {
-        call.resolve(["active": false])
+        guard let token = call.getString("token"), let url = call.getString("url") else {
+            call.reject("token/url gerekli")
+            return
+        }
+        Task {
+            do {
+                try await LiveKitCallManager.shared.startScreenShare(url: url, token: token)
+                call.resolve(["active": true])
+            } catch {
+                call.reject("Ekran paylaşımı başlatılamadı: \(error.localizedDescription)")
+            }
+        }
     }
 
     @objc func stopScreenShare(_ call: CAPPluginCall) {
-        call.resolve()
+        Task {
+            await LiveKitCallManager.shared.stopScreenShare()
+            call.resolve()
+        }
+    }
+}
+
+/// Yakınlık sensörü yöneticisi (iOS ekran söndürme). isProximityMonitoringEnabled=true TEK BAŞINA
+/// ekranı söndürür (observer GEREKMEZ) ama: (1) ana thread'de set edilmeli, (2) app aktif/görünür
+/// değilken iOS reddeder ve değeri sessizce false yapar → set edip GERİ OKU, reddedilirse tekrar dene,
+/// (3) arka plandan dönüşte flag sıfırlanır → didBecomeActive'de yeniden enable et, (4) kulaktayken
+/// (proximityState=true) disable edilirse state takılır → uzaklaşmayı bekle.
+final class ProximityManager {
+    static let shared = ProximityManager()
+    private var wantEnabled = false
+    private var deferDisable = false
+    private var observersWired = false
+
+    func set(_ on: Bool) {
+        DispatchQueue.main.async {
+            self.wantEnabled = on
+            if on {
+                self.wireObservers()
+                self.applyEnable(retriesLeft: 6) // erken/reddedilirse ~2.4sn boyunca tekrar dene
+            } else {
+                let d = UIDevice.current
+                if d.proximityState {
+                    self.deferDisable = true // kulaktayken kapatma → state takılır (Signal-iOS #5530)
+                } else {
+                    d.isProximityMonitoringEnabled = false
+                }
+            }
+        }
+    }
+
+    private func applyEnable(retriesLeft: Int) {
+        guard wantEnabled else { return } // bu arada disable edildiyse vazgeç
+        let d = UIDevice.current
+        d.isProximityMonitoringEnabled = true
+        if d.isProximityMonitoringEnabled { // GERİ OKU: kabul edildi mi
+            NSLog("[Proximity] enabled OK")
+            return
+        }
+        NSLog("[Proximity] enable REDDEDİLDİ (erken/aktif-değil/sensörsüz) — kalan deneme: \(retriesLeft)")
+        if retriesLeft > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.applyEnable(retriesLeft: retriesLeft - 1)
+            }
+        }
+    }
+
+    private func wireObservers() {
+        guard !observersWired else { return }
+        observersWired = true
+        // Arka plandan dönüşte flag sıfırlanır → istenen ise yeniden enable et.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self = self, self.wantEnabled else { return }
+            UIDevice.current.isProximityMonitoringEnabled = true
+        }
+        // Kulaktan uzaklaşınca (far) bekletilen disable'ı uygula.
+        NotificationCenter.default.addObserver(
+            forName: UIDevice.proximityStateDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            if !UIDevice.current.proximityState && self.deferDisable {
+                self.deferDisable = false
+                UIDevice.current.isProximityMonitoringEnabled = false
+            }
+        }
     }
 }
