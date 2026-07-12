@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -21,7 +21,34 @@
 		D1AAF5503002D68A003C32D2 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = D1AAF54F3002D68A003C32D2 /* LiveKit */; };
 		D1AAF5533002D9C0003C32D2 /* LiveKitCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF5513002D9C0003C32D2 /* LiveKitCallManager.swift */; };
 		D1AAF5543002D9C0003C32D2 /* LiveKitCallPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1AAF5523002D9C0003C32D2 /* LiveKitCallPlugin.swift */; };
+		D1AAF55C3003A6E8003C32D2 /* ReplayKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1AAF55B3003A6E8003C32D2 /* ReplayKit.framework */; };
+		D1AAF5633003A6E8003C32D2 /* BroadcastExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D1AAF5593003A6E8003C32D2 /* BroadcastExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D1AAF56B3003A87B003C32D2 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = D1AAF56A3003A87B003C32D2 /* LiveKit */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D1AAF5613003A6E8003C32D2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D1AAF5583003A6E8003C32D2;
+			remoteInfo = BroadcastExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D1AAF5683003A6E8003C32D2 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D1AAF5633003A6E8003C32D2 /* BroadcastExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -40,7 +67,23 @@
 		D1A9C4F0300100B6003A7913 /* CallKitVoipPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitVoipPlugin.swift; sourceTree = "<group>"; };
 		D1AAF5513002D9C0003C32D2 /* LiveKitCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveKitCallManager.swift; sourceTree = "<group>"; };
 		D1AAF5523002D9C0003C32D2 /* LiveKitCallPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveKitCallPlugin.swift; sourceTree = "<group>"; };
+		D1AAF5593003A6E8003C32D2 /* BroadcastExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BroadcastExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1AAF55B3003A6E8003C32D2 /* ReplayKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ReplayKit.framework; path = System/Library/Frameworks/ReplayKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D1AAF5643003A6E8003C32D2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D1AAF5583003A6E8003C32D2 /* BroadcastExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D1AAF55D3003A6E8003C32D2 /* BroadcastExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D1AAF5643003A6E8003C32D2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = BroadcastExtension; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		504EC3011FED79650016851F /* Frameworks */ = {
@@ -49,6 +92,15 @@
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 				D1AAF5503002D68A003C32D2 /* LiveKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1AAF5563003A6E8003C32D2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1AAF55C3003A6E8003C32D2 /* ReplayKit.framework in Frameworks */,
+				D1AAF56B3003A87B003C32D2 /* LiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -63,6 +115,8 @@
 				D14903A02FFF9FF900196F22 /* Uzaktan Şantiye.entitlements */,
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				D1AAF55D3003A6E8003C32D2 /* BroadcastExtension */,
+				D1AAF55A3003A6E8003C32D2 /* Frameworks */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* Uzaktan Şantiye.app */,
+				D1AAF5593003A6E8003C32D2 /* BroadcastExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -93,6 +148,14 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		D1AAF55A3003A6E8003C32D2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D1AAF55B3003A6E8003C32D2 /* ReplayKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -103,10 +166,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				D1AAF5683003A6E8003C32D2 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D1AAF5623003A6E8003C32D2 /* PBXTargetDependency */,
 			);
 			name = "Uzaktan Şantiye";
 			packageProductDependencies = (
@@ -117,6 +182,29 @@
 			productReference = 504EC3041FED79650016851F /* Uzaktan Şantiye.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D1AAF5583003A6E8003C32D2 /* BroadcastExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1AAF5653003A6E8003C32D2 /* Build configuration list for PBXNativeTarget "BroadcastExtension" */;
+			buildPhases = (
+				D1AAF5553003A6E8003C32D2 /* Sources */,
+				D1AAF5563003A6E8003C32D2 /* Frameworks */,
+				D1AAF5573003A6E8003C32D2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D1AAF55D3003A6E8003C32D2 /* BroadcastExtension */,
+			);
+			name = BroadcastExtension;
+			packageProductDependencies = (
+				D1AAF56A3003A87B003C32D2 /* LiveKit */,
+			);
+			productName = BroadcastExtension;
+			productReference = D1AAF5593003A6E8003C32D2 /* BroadcastExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -124,13 +212,16 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastSwiftUpdateCheck = 0920;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
+					};
+					D1AAF5583003A6E8003C32D2 = {
+						CreatedOnToolsVersion = 26.4.1;
 					};
 				};
 			};
@@ -152,6 +243,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* Uzaktan Şantiye */,
+				D1AAF5583003A6E8003C32D2 /* BroadcastExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -171,6 +263,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1AAF5573003A6E8003C32D2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -186,7 +285,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1AAF5553003A6E8003C32D2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D1AAF5623003A6E8003C32D2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D1AAF5583003A6E8003C32D2 /* BroadcastExtension */;
+			targetProxy = D1AAF5613003A6E8003C32D2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -377,6 +491,80 @@
 			};
 			name = Release;
 		};
+		D1AAF5663003A6E8003C32D2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = BroadcastExtension/BroadcastExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M254VNMF38;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BroadcastExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BroadcastExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mesalegrup.uzaktansantiye.broadcast;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D1AAF5673003A6E8003C32D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = BroadcastExtension/BroadcastExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M254VNMF38;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BroadcastExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BroadcastExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mesalegrup.uzaktansantiye.broadcast;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -394,6 +582,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D1AAF5653003A6E8003C32D2 /* Build configuration list for PBXNativeTarget "BroadcastExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1AAF5663003A6E8003C32D2 /* Debug */,
+				D1AAF5673003A6E8003C32D2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -425,6 +622,11 @@
 			productName = "CapApp-SPM";
 		};
 		D1AAF54F3002D68A003C32D2 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1AAF54E3002D68A003C32D2 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
+		D1AAF56A3003A87B003C32D2 /* LiveKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D1AAF54E3002D68A003C32D2 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
 			productName = LiveKit;
