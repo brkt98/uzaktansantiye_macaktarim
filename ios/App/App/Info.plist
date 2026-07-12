@@ -79,5 +79,18 @@
 	<string>İndirilen dosyaları cihazınıza kaydetmek için izin gereklidir.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Uygulama kilidini Face ID ile açmak için kullanılır.</string>
+	<!-- Faz 5b paylaşım hedefi: ShareExtension paylaşım sonrası ana uygulamayı
+	     uzaktansantiye://share ile açar (App Group container'ı ShareTargetPlugin okur). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.mesalegrup.uzaktansantiye.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>uzaktansantiye</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
