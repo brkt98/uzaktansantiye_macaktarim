@@ -1,12 +1,10 @@
-//
-//  Viimport UIKit
+import UIKit
 import WebKit
 import Capacitor
 
 /// Faz 6: Görüntülü aramada "hole-punch" render — Capacitor WKWebView'i ŞEFFAF yapıp arkasına
 /// native LiveKit VideoView'ları koyar (kontroller web'de kalır, video native çizilir).
-/// ⚠️ Main.storyboard'daki BridgeViewController bu sınıfa bağlanmalı:
-///    customClass="ViewController"  customModule="App".
+/// ⚠️ Main.storyboard'daki BridgeViewController bu sınıfa bağlanmalı (customClass=ViewController).
 class ViewController: CAPBridgeViewController {
 
     private var videoContainer: UIView?
@@ -16,7 +14,7 @@ class ViewController: CAPBridgeViewController {
         view.backgroundColor = ViewController.navy
         webView?.isOpaque = false
         webView?.backgroundColor = .clear
-        (webView as? WKWebView)?.scrollView.backgroundColor = .clear
+        webView?.scrollView.backgroundColor = .clear
 
         let container: UIView
         if let existing = videoContainer {
@@ -42,12 +40,7 @@ class ViewController: CAPBridgeViewController {
         videoContainer = nil
         webView?.isOpaque = true
         webView?.backgroundColor = ViewController.navy
-        (webView as? WKWebView)?.scrollView.backgroundColor = ViewController.navy
+        webView?.scrollView.backgroundColor = ViewController.navy
         view.backgroundColor = ViewController.navy
     }
-}ewController.swift
-//  App
-//
-//  Created by Ceren Dastanoglu on 12.07.2026.
-//
-
+}
